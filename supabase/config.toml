@@ -1,0 +1,5 @@
+# Fragmento para el CLI de Supabase. Si ya tienes `supabase init`, fusiona esta sección.
+# La función valida JWT en la entrada de Supabase y además comprueba rol admin en código.
+
+[functions.invite-user]
+verify_jwt = true

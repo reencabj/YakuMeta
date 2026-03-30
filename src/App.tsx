@@ -3,6 +3,8 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/auth/AuthProvider";
 import { AppShell } from "@/components/layout/AppShell";
 import { DashboardPage } from "@/pages/DashboardPage";
+import { AuthCallbackPage } from "@/pages/AuthCallbackPage";
+import { AuthRecoveryPage } from "@/pages/AuthRecoveryPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { HistoryPage } from "@/pages/HistoryPage";
 import { StatisticsPage } from "@/pages/StatisticsPage";
@@ -40,6 +42,8 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/auth/recovery" element={<AuthRecoveryPage />} />
+      <Route path="/auth/callback" element={<AuthCallbackPage />} />
       <Route
         path="/"
         element={

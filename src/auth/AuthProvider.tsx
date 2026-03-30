@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import type { Session, User } from "@supabase/supabase-js";
-import { supabase, usernameToEmail } from "@/lib/supabase";
+import { authRecoveryRedirectUrl, supabase } from "@/lib/supabase";
 import type { Database } from "@/types/database";
 
 type Profile = Database["public"]["Tables"]["profiles"]["Row"];
@@ -18,7 +18,9 @@ type AuthContextValue = {
   user: User | null;
   profile: Profile | null;
   loading: boolean;
-  signIn: (username: string, password: string) => Promise<{ error: Error | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  requestPasswordReset: (email: string) => Promise<{ error: Error | null }>;
+  updatePassword: (newPassword: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 };
@@ -63,9 +65,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [loadProfile]);
 
-  const signIn = useCallback(async (username: string, password: string) => {
-    const email = usernameToEmail(username);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const signIn = useCallback(async (email: string, password: string) => {
+    const normalized = email.trim().toLowerCase();
+    const { error } = await supabase.auth.signInWithPassword({ email: normalized, password });
+    return { error: error ? new Error(error.message) : null };
+  }, []);
+
+  const requestPasswordReset = useCallback(async (email: string) => {
+    const normalized = email.trim().toLowerCase();
+    const redirectTo = authRecoveryRedirectUrl();
+    const { error } = await supabase.auth.resetPasswordForEmail(normalized, { redirectTo });
+    return { error: error ? new Error(error.message) : null };
+  }, []);
+
+  const updatePassword = useCallback(async (newPassword: string) => {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
     return { error: error ? new Error(error.message) : null };
   }, []);
 
@@ -85,10 +99,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profile,
       loading,
       signIn,
+      requestPasswordReset,
+      updatePassword,
       signOut,
       refreshProfile,
     }),
-    [session, profile, loading, signIn, signOut, refreshProfile]
+    [session, profile, loading, signIn, requestPasswordReset, updatePassword, signOut, refreshProfile]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

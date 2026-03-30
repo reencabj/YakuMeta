@@ -38,6 +38,7 @@ export interface Database {
       profiles: {
         Row: {
           id: string;
+          email: string;
           username: string;
           display_name: string | null;
           role: UserRole;
@@ -49,6 +50,7 @@ export interface Database {
         };
         Insert: {
           id: string;
+          email?: string;
           username: string;
           display_name?: string | null;
           role?: UserRole;

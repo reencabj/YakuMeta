@@ -13,7 +13,7 @@ export async function fetchProfilesForAdmin(): Promise<ProfileRow[]> {
 
 export async function updateProfileAdmin(
   id: string,
-  patch: Pick<Database["public"]["Tables"]["profiles"]["Update"], "role" | "is_active" | "display_name">
+  patch: Pick<Database["public"]["Tables"]["profiles"]["Update"], "role" | "is_active" | "display_name" | "username">
 ) {
   const { data, error } = await supabase.from("profiles").update(patch).eq("id", id).select("*").single();
   if (error) throw error;
@@ -86,4 +86,48 @@ export async function adminSystemSnapshot(): Promise<Json> {
   const { data, error } = await supabase.rpc("admin_system_snapshot");
   if (error) throw error;
   return data;
+}
+
+type InviteUserBody = {
+  email: string;
+  username: string;
+  display_name?: string | null;
+  role?: "admin" | "user";
+};
+
+export async function inviteUserViaEdge(body: InviteUserBody): Promise<{ ok: true; user_id: string }> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session?.access_token) throw new Error("Sesión requerida.");
+
+  const base = import.meta.env.VITE_SUPABASE_URL.replace(/\/$/, "");
+  const res = await fetch(`${base}/functions/v1/invite-user`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${session.access_token}`,
+      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+    },
+    body: JSON.stringify(body),
+  });
+
+  const json = (await res.json().catch(() => ({}))) as { error?: string; message?: string; ok?: boolean; user_id?: string };
+  if (!res.ok) {
+    const code = json.error ?? "unknown";
+    const map: Record<string, string> = {
+      forbidden: "Sin permiso para invitar usuarios.",
+      invalid_email: "Email no válido.",
+      invalid_username:
+        "Usuario no válido: entre 2 y 48 caracteres, minúsculas, números, punto, guión o guión bajo.",
+      email_already_registered: "Ese email ya está registrado en perfiles.",
+      username_taken: "Ese nombre de usuario ya existe.",
+      email_already_in_auth: json.message ?? "El email ya existe en Auth.",
+      invite_failed: json.message ?? "No se pudo enviar la invitación.",
+    };
+    throw new Error(map[code] ?? json.message ?? `Error ${res.status}`);
+  }
+
+  if (!json.ok || !json.user_id) throw new Error("Respuesta inválida del servidor.");
+  return { ok: true, user_id: json.user_id };
 }

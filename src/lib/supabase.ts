@@ -10,12 +10,32 @@ if (!url || !anon) {
 }
 
 /** Tipado genérico completo vía `supabase gen types` cuando el esquema esté estable. */
-export const supabase = createClient(url ?? "", anon ?? "");
+export const supabase = createClient(url ?? "", anon ?? "", {
+  auth: {
+    detectSessionInUrl: true,
+    flowType: "pkce",
+  },
+});
 
-/** Dominio interno para cumplir con email en Supabase Auth */
-export const INTERNAL_EMAIL_DOMAIN = "internal.rp.local";
+/**
+ * Origen público de la app (sin barra final). En producción conviene fijar `VITE_PUBLIC_APP_URL`
+ * para que los enlaces de correo apunten al dominio real aunque se dispare el envío desde otro entorno.
+ */
+export function getPublicAppBaseUrl(): string {
+  const fromEnv = import.meta.env.VITE_PUBLIC_APP_URL?.trim();
+  if (fromEnv) return fromEnv.replace(/\/$/, "");
+  if (typeof window !== "undefined") {
+    return `${window.location.origin}${import.meta.env.BASE_URL}`.replace(/\/$/, "");
+  }
+  return "";
+}
 
-export function usernameToEmail(username: string) {
-  const u = username.trim().toLowerCase();
-  return `${u}@${INTERNAL_EMAIL_DOMAIN}`;
+/** URL permitida en Supabase Auth → Redirect URLs (recuperación e invitación). */
+export function authRecoveryRedirectUrl(): string {
+  return `${getPublicAppBaseUrl()}/auth/recovery`;
+}
+
+/** Tras confirmar sesión por enlace (callback genérico). */
+export function authCallbackRedirectUrl(): string {
+  return `${getPublicAppBaseUrl()}/auth/callback`;
 }

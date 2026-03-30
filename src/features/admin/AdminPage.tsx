@@ -20,12 +20,13 @@ import {
   updatePricingRule,
   deletePricingRule,
   updateProfileAdmin,
+  inviteUserViaEdge,
   type LocationTypeRow,
   type PricingRuleRow,
   type ProfileRow,
 } from "@/services/adminService";
 import { fetchAppSettings, updateAppSettings, type AppSettingsRow } from "@/services/appSettingsService";
-import { supabase, usernameToEmail } from "@/lib/supabase";
+import { authRecoveryRedirectUrl, supabase } from "@/lib/supabase";
 import { PageHeader, PageShell, PanelCard, SegmentTabs } from "@/components/shell";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -91,6 +92,11 @@ export function AdminPage() {
   });
 
   const [editProfile, setEditProfile] = useState<ProfileRow | null>(null);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteUsername, setInviteUsername] = useState("");
+  const [inviteDisplayName, setInviteDisplayName] = useState("");
+  const [inviteRole, setInviteRole] = useState<"user" | "admin">("user");
   const [newTypeName, setNewTypeName] = useState("");
   const [editRule, setEditRule] = useState<PricingRuleRow | null>(null);
   const [newRuleOpen, setNewRuleOpen] = useState(false);
@@ -99,6 +105,26 @@ export function AdminPage() {
   const updateProfileM = useMutation({
     mutationFn: (p: { id: string; patch: Parameters<typeof updateProfileAdmin>[1] }) => updateProfileAdmin(p.id, p.patch),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["admin", "profiles"] }),
+  });
+
+  const inviteUserM = useMutation({
+    mutationFn: () =>
+      inviteUserViaEdge({
+        email: inviteEmail.trim().toLowerCase(),
+        username: inviteUsername.trim().toLowerCase(),
+        display_name: inviteDisplayName.trim() || null,
+        role: inviteRole,
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["admin", "profiles"] });
+      setInviteOpen(false);
+      setInviteEmail("");
+      setInviteUsername("");
+      setInviteDisplayName("");
+      setInviteRole("user");
+      window.alert("Invitación enviada. El usuario recibirá un email para establecer su acceso.");
+    },
+    onError: (err: Error) => window.alert(err.message),
   });
 
   const updateSettingsM = useMutation({
@@ -163,11 +189,21 @@ export function AdminPage() {
       />
 
       {tab === "users" ? (
-        <PanelCard icon={Users} title="Usuarios" description="Listado y edición de rol / estado. Alta de cuentas: Supabase Auth (ver nota abajo).">
+        <PanelCard
+          icon={Users}
+          title="Usuarios"
+          description="Identidad operativa: usuario visible y nombre en la app; login con email real (Supabase Auth)."
+          headerExtra={
+            <Button type="button" size="sm" onClick={() => setInviteOpen(true)}>
+              Invitar por email
+            </Button>
+          }
+        >
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Usuario</TableHead>
+                <TableHead>Email</TableHead>
                 <TableHead>Nombre</TableHead>
                 <TableHead>Rol</TableHead>
                 <TableHead>Activo</TableHead>
@@ -179,6 +215,7 @@ export function AdminPage() {
               {(profilesQ.data ?? []).map((p) => (
                 <TableRow key={p.id}>
                   <TableCell className="font-medium">{p.username}</TableCell>
+                  <TableCell className="max-w-[200px] truncate text-xs text-muted-foreground">{p.email}</TableCell>
                   <TableCell>{p.display_name ?? "—"}</TableCell>
                   <TableCell>
                     <span
@@ -202,12 +239,67 @@ export function AdminPage() {
             </TableBody>
           </Table>
           <div className="mt-4 rounded-xl border border-border/60 bg-muted/20 p-4 text-sm text-muted-foreground">
-            <p className="font-medium text-foreground">Alta de usuarios</p>
+            <p className="font-medium text-foreground">Invitaciones</p>
             <p className="mt-1">
-              Las cuentas se crean en <strong>Supabase Auth</strong> (Authentication → Users). El trigger del proyecto
-              enlaza <code className="rounded bg-muted px-1">auth.users</code> con <code className="rounded bg-muted px-1">profiles</code>.
+              Las invitaciones usan la Edge Function <code className="rounded bg-muted px-1">invite-user</code> con tu
+              sesión de administrador (sin exponer <code className="rounded bg-muted px-1">service_role</code> en el
+              navegador).
             </p>
           </div>
+
+          <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Invitar usuario</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-3 py-2">
+                <div className="space-y-1">
+                  <Label>Email (login)</Label>
+                  <Input type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} autoComplete="off" />
+                </div>
+                <div className="space-y-1">
+                  <Label>Nombre de usuario (app)</Label>
+                  <Input
+                    value={inviteUsername}
+                    onChange={(e) => setInviteUsername(e.target.value.toLowerCase())}
+                    placeholder="solo minúsculas, números, . _ -"
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Nombre visible (opcional)</Label>
+                  <Input value={inviteDisplayName} onChange={(e) => setInviteDisplayName(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Rol inicial</Label>
+                  <select
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+                    value={inviteRole}
+                    onChange={(e) => setInviteRole(e.target.value as "admin" | "user")}
+                  >
+                    <option value="user">user</option>
+                    <option value="admin">admin</option>
+                  </select>
+                </div>
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    disabled={inviteUserM.isPending}
+                    onClick={() => {
+                      const u = inviteUsername.trim().toLowerCase();
+                      if (!/^[a-z0-9][a-z0-9_.-]{1,47}$/.test(u)) {
+                        window.alert("Usuario no válido: 2–48 caracteres, minúsculas, números, . _ -");
+                        return;
+                      }
+                      inviteUserM.mutate();
+                    }}
+                  >
+                    {inviteUserM.isPending ? "Enviando…" : "Enviar invitación"}
+                  </Button>
+                </DialogFooter>
+              </div>
+            </DialogContent>
+          </Dialog>
         </PanelCard>
       ) : null}
 
@@ -452,8 +544,8 @@ export function AdminPage() {
                 setEditProfile(null);
               }}
               onResetPassword={() => {
-                const email = usernameToEmail(editProfile.username);
-                void supabase.auth.resetPasswordForEmail(email);
+                const email = editProfile.email.trim().toLowerCase();
+                void supabase.auth.resetPasswordForEmail(email, { redirectTo: authRecoveryRedirectUrl() });
                 window.alert(`Si el proveedor de correo está configurado, se envió un enlace a ${email}`);
               }}
             />
@@ -477,12 +569,18 @@ function ProfileEditForm(props: {
   onSave: (patch: Parameters<typeof updateProfileAdmin>[1]) => void;
   onResetPassword: () => void;
 }) {
+  const [username, setUsername] = useState(props.profile.username);
   const [displayName, setDisplayName] = useState(props.profile.display_name ?? "");
   const [role, setRole] = useState<"admin" | "user">(props.profile.role);
   const [active, setActive] = useState(props.profile.is_active);
 
   return (
     <div className="grid gap-3 py-2">
+      <div className="space-y-1">
+        <Label>Usuario (app)</Label>
+        <Input value={username} onChange={(e) => setUsername(e.target.value.toLowerCase())} />
+        <p className="text-xs text-muted-foreground">Email de login: {props.profile.email}</p>
+      </div>
       <div className="space-y-1">
         <Label>Nombre visible</Label>
         <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
@@ -508,13 +606,19 @@ function ProfileEditForm(props: {
         </Button>
         <Button
           type="button"
-          onClick={() =>
+          onClick={() => {
+            const u = username.trim().toLowerCase();
+            if (!/^[a-z0-9][a-z0-9_.-]{1,47}$/.test(u)) {
+              window.alert("Usuario no válido: 2–48 caracteres, minúsculas, números, . _ -");
+              return;
+            }
             props.onSave({
+              username: u,
               display_name: displayName.trim() || null,
               role,
               is_active: active,
-            })
-          }
+            });
+          }}
         >
           Guardar
         </Button>
