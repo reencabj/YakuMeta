@@ -1,6 +1,12 @@
 import { useEffect } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import {
+  ClipboardList,
+  LayoutDashboard,
+  Package,
+  Settings,
+  BarChart3,
+  ScrollText,
   LogOut,
 } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
@@ -13,12 +19,12 @@ import { cn } from "@/lib/utils";
 const DEFAULT_APP_TITLE = "Yakuza Meta Stock";
 
 const nav = [
-  { to: "/", label: "Dashboard", end: true },
-  { to: "/pedidos", label: "Pedidos" },
-  { to: "/stock", label: "Stock" },
-  { to: "/estadisticas", label: "Estadísticas" },
-  { to: "/historial", label: "Historial" },
-  { to: "/admin", label: "Admin", adminOnly: true },
+  { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
+  { to: "/pedidos", label: "Pedidos", icon: ClipboardList },
+  { to: "/stock", label: "Stock", icon: Package },
+  { to: "/estadisticas", label: "Estadísticas", icon: BarChart3 },
+  { to: "/historial", label: "Historial", icon: ScrollText },
+  { to: "/admin", label: "Admin", icon: Settings, adminOnly: true },
 ];
 
 export function AppShell() {
@@ -57,7 +63,7 @@ export function AppShell() {
                   )
                 }
               >
-                <img src="/logo.png" alt="" aria-hidden className="h-4 w-4 object-contain" />
+                <item.icon className="size-4" />
                 {item.label}
               </NavLink>
             ))}
