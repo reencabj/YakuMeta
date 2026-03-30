@@ -119,10 +119,14 @@ export async function updateOrderPatch(
   orderId: string,
   patch: Partial<{
     cliente_nombre: string;
+    cantidad_meta_kilos: number;
     notas: string | null;
     fecha_pedido: string;
     fecha_encargo: string | null;
     estado: Database["public"]["Tables"]["orders"]["Row"]["estado"];
+    prioridad: number | null;
+    precio_sugerido_por_kilo: number | null;
+    total_sugerido: number | null;
   }>
 ): Promise<void> {
   const { error } = await supabase.from("orders").update(patch).eq("id", orderId);

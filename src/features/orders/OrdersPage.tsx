@@ -24,15 +24,13 @@ import {
   useDeliveriesTodayCount,
   useOpenOrdersCoberturaQuery,
   useOrdersQuery,
-  useUpdateOrderMutation,
 } from "@/hooks/useOrders";
 import type { OrderState } from "@/types/database";
 import type { OrderWithCreator } from "@/services/orderService";
 import { DeliverOrderDialog } from "./DeliverOrderDialog";
-import { EditOrderDialog } from "./EditOrderDialog";
 import { NewOrderDialog } from "./NewOrderDialog";
 import { OrderDetailDialog } from "./OrderDetailDialog";
-import { ACTIVE_ORDER_STATES, estadoBadgeClass, sortOrders } from "./orderUtils";
+import { ACTIVE_ORDER_STATES, estadoBadgeClass, normalizaPrioridad, OrderPriorityStars, sortOrders } from "./orderUtils";
 import {
   Dialog,
   DialogContent,
@@ -52,7 +50,6 @@ export function OrdersPage() {
   const coberturaQ = useOpenOrdersCoberturaQuery();
   const todayQ = useDeliveriesTodayCount();
   const cancelMut = useCancelOrderMutation();
-  const prepMut = useUpdateOrderMutation();
 
   const [search, setSearch] = useState("");
   const [estadoFilter, setEstadoFilter] = useState<OrderState | "all">("all");
@@ -61,7 +58,6 @@ export function OrdersPage() {
   const [newOpen, setNewOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [deliverOrder, setDeliverOrder] = useState<OrderWithCreator | null>(null);
-  const [editOrder, setEditOrder] = useState<OrderWithCreator | null>(null);
   const [cancelOrder, setCancelOrder] = useState<OrderWithCreator | null>(null);
   const [cancelReason, setCancelReason] = useState("");
 
@@ -166,7 +162,7 @@ export function OrdersPage() {
       <PanelCard
         icon={Filter}
         title="Comandas"
-        description="Búsqueda por cliente, estado y cobertura FIFO."
+        description="Tarjetas compactas; clic para abrir detalle, edición y acciones. Orden: no entregados arriba (prioridad y más antiguos primero), entregados abajo."
       >
           <div className="mb-5 flex flex-wrap gap-3">
             <div className="relative min-w-[200px] flex-1">
@@ -194,106 +190,55 @@ export function OrdersPage() {
               Sin cobertura FIFO
             </label>
           </div>
-        <div className="space-y-3">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {ordersQ.isLoading ? (
-            <p className="text-sm text-muted-foreground">Cargando…</p>
+            <p className="text-sm text-muted-foreground sm:col-span-full">Cargando…</p>
           ) : ordersQ.error ? (
-            <p className="text-sm text-red-400">{(ordersQ.error as Error).message}</p>
+            <p className="text-sm text-red-400 sm:col-span-full">{(ordersQ.error as Error).message}</p>
           ) : filtered.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Ningún pedido con estos filtros.</p>
+            <p className="text-sm text-muted-foreground sm:col-span-full">Ningún pedido con estos filtros.</p>
           ) : (
             filtered.map((o) => {
-              const canAct = ACTIVE_ORDER_STATES.includes(o.estado);
               const alcanza = coberturaMap.get(o.id);
               const showCobertura = ACTIVE_ORDER_STATES.includes(o.estado) && alcanza !== undefined;
+              const pri = normalizaPrioridad(o.prioridad);
               return (
-                <div
+                <button
                   key={o.id}
-                  className="flex flex-col gap-3 rounded-xl border border-border/80 bg-card/50 p-4 shadow-sm transition-colors hover:border-primary/30 sm:flex-row sm:items-start sm:justify-between"
+                  type="button"
+                  onClick={() => setDetailId(o.id)}
+                  className={cn(
+                    "flex w-full flex-col gap-2 rounded-xl border border-border/80 bg-card/50 p-3 text-left shadow-sm transition-colors",
+                    "hover:border-primary/35 hover:bg-card/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    pri >= 1 && "border-amber-600/35 shadow-[0_0_0_1px_rgba(251,191,36,0.12)]"
+                  )}
                 >
-                  <div className="min-w-0 space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-semibold leading-tight">{o.cliente_nombre}</span>
-                      <span
-                        className={cn(
-                          "rounded-md border px-2 py-0.5 text-[10px] uppercase",
-                          estadoBadgeClass(o.estado)
-                        )}
-                      >
-                        {o.estado.replace(/_/g, " ")}
-                      </span>
-                      {showCobertura ? (
-                        <span
-                          className={cn(
-                            "rounded-md border px-2 py-0.5 text-[10px]",
-                            alcanza
-                              ? "border-emerald-700/50 bg-emerald-950/30 text-emerald-200"
-                              : "border-amber-700/50 bg-amber-950/30 text-amber-200"
-                          )}
-                        >
-                          {alcanza ? "Cubre (FIFO)" : "No alcanza aún"}
-                        </span>
-                      ) : null}
-                    </div>
-                    <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs sm:grid-cols-3">
-                      <div>
-                        <span className="text-muted-foreground">Pedido </span>
-                        <span className="font-mono tabular-nums">{Number(o.cantidad_meta_kilos).toFixed(2)} kg</span>
-                        <span className="text-muted-foreground"> · </span>
-                        <span className="text-muted-foreground">
-                          {Math.round(Number(o.cantidad_meta_kilos) * BOLSAS_PER_KG_META)} bol.
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Sugerido </span>
-                        <span className="font-mono tabular-nums">
-                          {o.total_sugerido != null ? `$${Number(o.total_sugerido).toLocaleString("es-AR")}` : "—"}
-                        </span>
-                      </div>
-                    </div>
-                    <p className="text-[10px] text-muted-foreground">
-                      Pedido {format(parseISO(o.fecha_pedido), "dd/MM/yy", { locale: es })}
-                      {o.fecha_encargo
-                        ? ` · encargo ${format(parseISO(o.fecha_encargo), "dd/MM/yy", { locale: es })}`
-                        : ""}
-                    </p>
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="min-w-0 flex-1 truncate font-semibold leading-tight text-foreground">{o.cliente_nombre}</span>
+                    <span className="flex shrink-0 items-center gap-1">
+                      <OrderPriorityStars prioridad={o.prioridad} />
+                    </span>
                   </div>
-                  <div className="flex flex-wrap gap-1.5 shrink-0">
-                    <Button type="button" size="sm" variant="outline" onClick={() => setDetailId(o.id)}>
-                      Detalle
-                    </Button>
-                    {canAct ? (
-                      <>
-                        <Button type="button" size="sm" variant="secondary" onClick={() => setDeliverOrder(o)}>
-                          Entregar
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={prepMut.isPending || o.estado === "en_preparacion"}
-                          onClick={async () => {
-                            await prepMut.mutateAsync({ id: o.id, patch: { estado: "en_preparacion" } });
-                          }}
-                        >
-                          En prep.
-                        </Button>
-                        <Button type="button" size="sm" variant="outline" onClick={() => setEditOrder(o)}>
-                          Editar
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          className="text-red-400"
-                          onClick={() => setCancelOrder(o)}
-                        >
-                          Cancelar
-                        </Button>
-                      </>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className={cn("rounded-md border px-1.5 py-0.5 text-[9px] uppercase", estadoBadgeClass(o.estado))}>
+                      {o.estado.replace(/_/g, " ")}
+                    </span>
+                    {showCobertura && alcanza === false ? (
+                      <span className="rounded-md border border-amber-700/50 bg-amber-950/25 px-1.5 py-0.5 text-[9px] text-amber-200">
+                        FIFO
+                      </span>
                     ) : null}
                   </div>
-                </div>
+                  <div className="text-xs tabular-nums text-muted-foreground">
+                    <span className="font-mono text-foreground">{Number(o.cantidad_meta_kilos).toFixed(2)} kg</span>
+                    <span> · </span>
+                    <span>{Math.round(Number(o.cantidad_meta_kilos) * BOLSAS_PER_KG_META)} bol.</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    {format(parseISO(o.fecha_pedido), "dd/MM/yy", { locale: es })}
+                    {o.fecha_encargo ? ` · enc. ${format(parseISO(o.fecha_encargo), "dd/MM/yy", { locale: es })}` : ""}
+                  </p>
+                </button>
               );
             })
           )}
@@ -301,9 +246,17 @@ export function OrdersPage() {
       </PanelCard>
 
       <NewOrderDialog open={newOpen} onOpenChange={setNewOpen} />
-      <OrderDetailDialog open={Boolean(detailId)} onOpenChange={(x) => !x && setDetailId(null)} orderId={detailId} />
+      <OrderDetailDialog
+        open={Boolean(detailId)}
+        onOpenChange={(x) => !x && setDetailId(null)}
+        orderId={detailId}
+        onRequestDeliver={(ord) => setDeliverOrder(ord)}
+        onRequestCancel={(ord) => {
+          setCancelOrder(ord);
+          setDetailId(null);
+        }}
+      />
       <DeliverOrderDialog open={Boolean(deliverOrder)} onOpenChange={(x) => !x && setDeliverOrder(null)} order={deliverOrder} />
-      <EditOrderDialog open={Boolean(editOrder)} onOpenChange={(x) => !x && setEditOrder(null)} order={editOrder} />
 
       <Dialog open={Boolean(cancelOrder)} onOpenChange={(x) => !x && setCancelOrder(null)}>
         <DialogContent>
