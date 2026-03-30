@@ -1,16 +1,19 @@
 # Configuración de correo en Supabase (Auth real)
 
-Esta app usa **email + contraseña**, **recuperación de contraseña** e **invitaciones** (`invite-user`). Los enlaces deben apuntar a la URL pública de la SPA (incluido el `basename` de Vite, p. ej. `/YakuMeta/`).
+Esta app usa **email + contraseña**, **recuperación de contraseña** e **invitaciones** (`invite-user`). Los enlaces deben apuntar a la URL pública de la SPA. Con `base: "/"` en Vite, las rutas de auth son `/auth/recovery` y `/auth/callback` bajo el **origen** (sin subcarpeta).
+
+Producción actual del proyecto: `https://metayakuza.reenz.site` (sin `/` final en variables).
 
 ## 1. URLs en el panel de Supabase
 
 En **Authentication → URL configuration**:
 
-- **Site URL**: origen base de la app, sin barra final recomendable para consistencia con esta guía, p. ej. `https://tu-usuario.github.io/YakuMeta`
+- **Site URL**: `https://metayakuza.reenz.site`
 - **Redirect URLs** (añadir todas las que uses):
-  - `http://localhost:5173/YakuMeta/auth/recovery` (Vite dev + `base`)
-  - `http://localhost:5173/YakuMeta/auth/callback`
-  - Las mismas rutas en producción con tu dominio real, p. ej. `https://tu-usuario.github.io/YakuMeta/auth/recovery`
+  - `http://localhost:5173/auth/recovery`
+  - `http://localhost:5173/auth/callback`
+  - `https://metayakuza.reenz.site/auth/recovery`
+  - `https://metayakuza.reenz.site/auth/callback`
 
 Deben coincidir **exactamente** con lo que genera el código (`getPublicAppBaseUrl()` + `/auth/recovery` o `/auth/callback`).
 
@@ -18,16 +21,16 @@ Deben coincidir **exactamente** con lo que genera el código (`getPublicAppBaseU
 
 En el build del frontend (GitHub Actions, etc.), define:
 
-`VITE_PUBLIC_APP_URL=https://tu-dominio.github.io/YakuMeta`
+`VITE_PUBLIC_APP_URL=https://metayakuza.reenz.site`
 
-(sin `/` final). Así los `redirectTo` de recuperación y las instrucciones de despliegue no dependen solo de `window.location` si el correo se dispara desde otro contexto.
+(sin `/` final). Así los `redirectTo` de recuperación y las invitaciones no dependen solo de `window.location`.
 
 ## 3. Secretos de la Edge Function `invite-user`
 
 Tras desplegar la función:
 
 ```bash
-supabase secrets set INVITE_REDIRECT_TO=https://tu-dominio.github.io/YakuMeta/auth/recovery
+supabase secrets set INVITE_REDIRECT_TO=https://metayakuza.reenz.site/auth/recovery
 ```
 
 `INVITE_REDIRECT_TO` debe estar también en **Redirect URLs**.  
