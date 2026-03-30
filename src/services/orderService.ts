@@ -1,0 +1,159 @@
+import { supabase } from "@/lib/supabase";
+import type { Database, Json } from "@/types/database";
+
+export type OrderRow = Database["public"]["Tables"]["orders"]["Row"];
+export type OrderDeliveryRow = Database["public"]["Tables"]["order_deliveries"]["Row"];
+export type OrderDeliveryItemRow = Database["public"]["Tables"]["order_delivery_items"]["Row"];
+export type AuditLogRow = Database["public"]["Tables"]["audit_logs"]["Row"];
+
+export type OrderWithCreator = OrderRow & {
+  creado_por: { id: string; username: string; display_name: string | null };
+};
+
+export type DeliveryWithItems = OrderDeliveryRow & {
+  items: OrderDeliveryItemRow[];
+  registrado_por: { id: string; username: string; display_name: string | null } | null;
+};
+
+export type OrderDetail = {
+  order: OrderWithCreator;
+  deliveries: DeliveryWithItems[];
+  audit: Pick<AuditLogRow, "id" | "accion" | "created_at" | "motivo" | "new_values" | "metadata">[];
+};
+
+export type DeliverItemInput = {
+  batch_id?: string;
+  storage_location_id?: string;
+  quantity_meta_kilos: number;
+  source_type: "stock" | "produccion_directa";
+};
+
+export type DeliverPayload = {
+  /** Usuario del sistema (profiles.id) que recibió el efectivo; la RPC valida que exista y esté activo. */
+  recibio_dinero_usuario_id: string;
+  amount_received: number;
+  delivered_at?: string;
+  notes?: string;
+  items: DeliverItemInput[];
+};
+
+export type OpenOrderCoberturaRow = {
+  order_id: string;
+  cum_kg: number;
+  alcanza_fifo: boolean;
+};
+
+const orderSelect = `
+  *,
+  creado_por:profiles!orders_creado_por_usuario_id_fkey (
+    id,
+    username,
+    display_name
+  )
+`;
+
+export async function fetchOrdersWithCreator(): Promise<OrderWithCreator[]> {
+  const { data, error } = await supabase.from("orders").select(orderSelect).eq("is_active", true);
+  if (error) throw error;
+  return (data ?? []) as OrderWithCreator[];
+}
+
+export async function fetchOpenOrdersCobertura(): Promise<OpenOrderCoberturaRow[]> {
+  const { data, error } = await supabase.from("v_open_orders_cobertura").select("order_id, cum_kg, alcanza_fifo");
+  if (error) throw error;
+  return (data ?? []) as OpenOrderCoberturaRow[];
+}
+
+export async function fetchOrderDetail(orderId: string): Promise<OrderDetail> {
+  const { data: ord, error: e1 } = await supabase.from("orders").select(orderSelect).eq("id", orderId).single();
+  if (e1) throw e1;
+
+  const { data: dels, error: e3 } = await supabase
+    .from("order_deliveries")
+    .select(
+      `
+      *,
+      items:order_delivery_items (*),
+      registrado_por:profiles!order_deliveries_created_by_fkey ( id, username, display_name )
+    `
+    )
+    .eq("order_id", orderId)
+    .order("entregado_at", { ascending: false });
+  if (e3) throw e3;
+
+  const { data: logs, error: e4 } = await supabase
+    .from("audit_logs")
+    .select("id, accion, created_at, motivo, new_values, metadata")
+    .eq("entity_type", "order")
+    .eq("entity_id", orderId)
+    .order("created_at", { ascending: false })
+    .limit(80);
+  if (e4) throw e4;
+
+  return {
+    order: ord as OrderWithCreator,
+    deliveries: (dels ?? []) as DeliveryWithItems[],
+    audit: logs ?? [],
+  };
+}
+
+export async function createOrder(input: {
+  cliente_nombre: string;
+  cantidad_meta_kilos: number;
+  fecha_pedido: string;
+  fecha_encargo: string | null;
+  notas: string | null;
+}): Promise<string> {
+  const { data, error } = await supabase.rpc("create_order", {
+    p_cliente_nombre: input.cliente_nombre,
+    p_cantidad_meta_kilos: input.cantidad_meta_kilos,
+    p_fecha_pedido: input.fecha_pedido,
+    p_fecha_encargo: input.fecha_encargo,
+    p_notas: input.notas,
+  });
+  if (error) throw error;
+  return data as string;
+}
+
+export async function updateOrderPatch(
+  orderId: string,
+  patch: Partial<{
+    cliente_nombre: string;
+    notas: string | null;
+    fecha_pedido: string;
+    fecha_encargo: string | null;
+    estado: Database["public"]["Tables"]["orders"]["Row"]["estado"];
+  }>
+): Promise<void> {
+  const { error } = await supabase.from("orders").update(patch).eq("id", orderId);
+  if (error) throw error;
+}
+
+export async function deliverOrder(orderId: string, payload: DeliverPayload): Promise<string> {
+  const p: Json = {
+    recibio_dinero_usuario_id: payload.recibio_dinero_usuario_id,
+    amount_received: payload.amount_received,
+    delivered_at: payload.delivered_at ?? null,
+    notes: payload.notes ?? null,
+    items: payload.items.map((i) => ({
+      batch_id: i.batch_id ?? null,
+      storage_location_id: i.storage_location_id ?? null,
+      quantity_meta_kilos: i.quantity_meta_kilos,
+      source_type: i.source_type,
+    })),
+  } as unknown as Json;
+  const { data, error } = await supabase.rpc("deliver_order", {
+    p_order_id: orderId,
+    p_payload: p,
+  });
+  if (error) throw error;
+  return data as string;
+}
+
+export async function cancelOrder(orderId: string, reason: string | null): Promise<void> {
+  const { error } = await supabase.rpc("cancel_order", {
+    p_order_id: orderId,
+    p_reason: reason,
+  });
+  if (error) throw error;
+}
