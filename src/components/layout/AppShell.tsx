@@ -1,12 +1,6 @@
 import { useEffect } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import {
-  ClipboardList,
-  LayoutDashboard,
-  Package,
-  Settings,
-  BarChart3,
-  ScrollText,
   LogOut,
 } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
@@ -19,12 +13,12 @@ import { cn } from "@/lib/utils";
 const DEFAULT_APP_TITLE = "Yakuza Meta Stock";
 
 const nav = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
-  { to: "/pedidos", label: "Pedidos", icon: ClipboardList },
-  { to: "/stock", label: "Stock", icon: Package },
-  { to: "/estadisticas", label: "Estadísticas", icon: BarChart3 },
-  { to: "/historial", label: "Historial", icon: ScrollText },
-  { to: "/admin", label: "Admin", icon: Settings, adminOnly: true },
+  { to: "/", label: "Dashboard", end: true },
+  { to: "/pedidos", label: "Pedidos" },
+  { to: "/stock", label: "Stock" },
+  { to: "/estadisticas", label: "Estadísticas" },
+  { to: "/historial", label: "Historial" },
+  { to: "/admin", label: "Admin", adminOnly: true },
 ];
 
 export function AppShell() {
@@ -43,8 +37,8 @@ export function AppShell() {
     <div className="flex h-dvh max-h-dvh overflow-hidden">
       <aside className="hidden h-full w-56 shrink-0 flex-col border-r border-border/80 bg-gradient-to-b from-card/90 to-muted/20 p-4 md:flex">
         <div className="flex flex-col items-center gap-2 py-4">
-          <img src="/logo.png" alt="logo" className="h-16 w-16 object-contain" />
-          <h1 className="text-white text-base font-semibold">Yakuza Meta</h1>
+          <img src="/logo.png" alt="logo" className="h-24 w-24 object-contain" />
+          <h1 className="text-white text-base font-semibold leading-tight">Yakuza Meta</h1>
         </div>
         <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden pr-1">
           {nav
@@ -63,7 +57,7 @@ export function AppShell() {
                   )
                 }
               >
-                <item.icon className="size-4" />
+                <img src="/logo.png" alt="" aria-hidden className="h-4 w-4 object-contain" />
                 {item.label}
               </NavLink>
             ))}
