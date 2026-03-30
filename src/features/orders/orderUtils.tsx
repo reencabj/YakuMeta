@@ -5,6 +5,8 @@ import type { OrderWithCreator } from "@/services/orderService";
 /** Pedidos que cuentan como “en curso” para la cola operativa */
 export const ACTIVE_ORDER_STATES: OrderState[] = ["pendiente", "en_preparacion"];
 
+export const CLOSED_ORDER_STATES: OrderState[] = ["entregado", "cancelado"];
+
 /** null / 0 → sin prioridad; 1 y 2 = niveles con más urgencia. */
 export function normalizaPrioridad(p: number | null | undefined): 0 | 1 | 2 {
   if (p == null || p <= 0) return 0;
@@ -12,29 +14,26 @@ export function normalizaPrioridad(p: number | null | undefined): 0 | 1 | 2 {
   return 1;
 }
 
-/** Orden: no entregados primero (prioridad 2 → 1 → sin), dentro de cada grupo más viejos primero; entregados al final (misma prioridad, fecha pedido descendente). */
-export function sortOrders(list: OrderWithCreator[]): OrderWithCreator[] {
-  const rankP = (p: number | null | undefined) => {
-    const n = normalizaPrioridad(p);
-    if (n === 2) return 0;
-    if (n === 1) return 1;
-    return 2;
-  };
+const prioritySortRank = (p: number | null | undefined) => {
+  const n = normalizaPrioridad(p);
+  if (n === 2) return 0;
+  if (n === 1) return 1;
+  return 2;
+};
 
+/** Solo pendiente / en preparación: prioridad 2 → 1 → sin; mismo nivel, más viejos primero. */
+export function sortActiveOrders(list: OrderWithCreator[]): OrderWithCreator[] {
   return [...list].sort((a, b) => {
-    const aEnt = a.estado === "entregado" ? 1 : 0;
-    const bEnt = b.estado === "entregado" ? 1 : 0;
-    if (aEnt !== bEnt) return aEnt - bEnt;
-
-    const ap = rankP(a.prioridad);
-    const bp = rankP(b.prioridad);
+    const ap = prioritySortRank(a.prioridad);
+    const bp = prioritySortRank(b.prioridad);
     if (ap !== bp) return ap - bp;
-
-    const ta = new Date(a.fecha_pedido).getTime();
-    const tb = new Date(b.fecha_pedido).getTime();
-    if (aEnt === 0) return ta - tb;
-    return tb - ta;
+    return new Date(a.fecha_pedido).getTime() - new Date(b.fecha_pedido).getTime();
   });
+}
+
+/** Entregados y cancelados: más recientes por última actualización primero (proxy de cierre). */
+export function sortClosedOrders(list: OrderWithCreator[]): OrderWithCreator[] {
+  return [...list].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
 }
 
 export function OrderPriorityStars({ prioridad }: { prioridad: number | null | undefined }) {
