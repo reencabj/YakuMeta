@@ -30,11 +30,17 @@ export function LoginPage() {
   }, [session, profileLoading, navigate]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader>
+    <div className="relative flex min-h-screen items-center justify-center bg-background p-4">
+      <div
+        className="pointer-events-none absolute inset-0 bg-center bg-cover opacity-20 blur-[1px]"
+        style={{ backgroundImage: "url('/bg.png')" }}
+        aria-hidden
+      />
+      <Card className="relative z-10 w-full max-w-md">
+        <CardHeader className="text-center">
+          <img src="/logo.png" alt="Yakuza Meta" className="mx-auto h-28 w-28 object-contain" />
           <CardTitle>Iniciar sesión</CardTitle>
-          <CardDescription>Email y contraseña (Supabase Auth).</CardDescription>
+          <CardDescription>Email y contraseña.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <form
@@ -70,7 +76,7 @@ export function LoginPage() {
             </Button>
           </form>
 
-          <div className="border-t border-border pt-4">
+          <div className="border-t border-border pt-4 text-center">
             <button
               type="button"
               className="text-sm text-primary underline-offset-4 hover:underline"
