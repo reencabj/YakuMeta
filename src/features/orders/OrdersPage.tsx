@@ -24,6 +24,7 @@ import {
   useDeliveriesTodayCount,
   useOpenOrdersCoberturaQuery,
   useOrdersQuery,
+  useUpdateOrderMutation,
 } from "@/hooks/useOrders";
 import type { OrderState } from "@/types/database";
 import type { OrderWithCreator } from "@/services/orderService";
@@ -58,6 +59,7 @@ export function OrdersPage() {
   const coberturaQ = useOpenOrdersCoberturaQuery();
   const todayQ = useDeliveriesTodayCount();
   const cancelMut = useCancelOrderMutation();
+  const updateMut = useUpdateOrderMutation();
 
   const [search, setSearch] = useState("");
   const [estadoFilter, setEstadoFilter] = useState<OrderState | "all">("all");
@@ -108,6 +110,16 @@ export function OrdersPage() {
     const list = ordersQ.data ?? [];
     return list.filter((o) => o.estado === "entregado" && isToday(parseISO(o.updated_at))).length;
   }, [ordersQ.data]);
+
+  const moneyFmt = useMemo(
+    () =>
+      new Intl.NumberFormat("es-AR", {
+        style: "currency",
+        currency: "ARS",
+        maximumFractionDigits: 2,
+      }),
+    []
+  );
 
   return (
     <PageShell>
@@ -229,19 +241,19 @@ export function OrdersPage() {
                   Sin pedidos activos con estos filtros.
                 </p>
               ) : (
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
                   {activeOrders.map((o) => {
                     const alcanza = coberturaMap.get(o.id);
                     const showCobertura = alcanza !== undefined;
                     const pri = normalizaPrioridad(o.prioridad);
+                    const isPreparing = o.estado === "en_preparacion";
+                    const isPending = o.estado === "pendiente";
                     return (
-                      <button
+                      <div
                         key={o.id}
-                        type="button"
-                        onClick={() => setDetailId(o.id)}
                         className={cn(
                           "flex w-full flex-col gap-2 rounded-xl border border-border/80 bg-card/50 p-3 text-left shadow-sm transition-colors",
-                          "hover:border-primary/35 hover:bg-card/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                          "hover:border-primary/35 hover:bg-card/70",
                           pri >= 1 && "border-amber-600/35 shadow-[0_0_0_1px_rgba(251,191,36,0.12)]"
                         )}
                       >
@@ -273,13 +285,55 @@ export function OrdersPage() {
                           <span> · </span>
                           <span>{Math.round(Number(o.cantidad_meta_kilos) * BOLSAS_PER_KG_META)} bol.</span>
                         </div>
+                        <div className="text-xs tabular-nums">
+                          <span className="text-muted-foreground">Cobrar: </span>
+                          <span className="font-semibold text-foreground">
+                            {o.total_sugerido != null ? moneyFmt.format(Number(o.total_sugerido)) : "—"}
+                          </span>
+                        </div>
                         <p className="text-[10px] text-muted-foreground">
                           {format(parseISO(o.fecha_pedido), "dd/MM/yy", { locale: es })}
                           {o.fecha_encargo
                             ? ` · enc. ${format(parseISO(o.fecha_encargo), "dd/MM/yy", { locale: es })}`
                             : ""}
                         </p>
-                      </button>
+                        <div className="mt-1 flex flex-wrap gap-1.5">
+                          {isPending || isPreparing ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant={isPreparing ? "secondary" : "outline"}
+                              className="h-7 px-2 text-[11px]"
+                              disabled={updateMut.isPending}
+                              onClick={() =>
+                                void updateMut.mutateAsync({
+                                  id: o.id,
+                                  patch: { estado: isPreparing ? "pendiente" : "en_preparacion" },
+                                })
+                              }
+                            >
+                              {isPreparing ? "Pasar a pendiente" : "Pasar a preparación"}
+                            </Button>
+                          ) : null}
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="h-7 px-2 text-[11px]"
+                            onClick={() => setDeliverOrder(o)}
+                          >
+                            Entregar
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-[11px]"
+                            onClick={() => setDetailId(o.id)}
+                          >
+                            Detalle
+                          </Button>
+                        </div>
+                      </div>
                     );
                   })}
                 </div>
