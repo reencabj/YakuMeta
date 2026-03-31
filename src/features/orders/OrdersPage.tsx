@@ -251,9 +251,18 @@ export function OrdersPage() {
                     return (
                       <div
                         key={o.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setDetailId(o.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setDetailId(o.id);
+                          }
+                        }}
                         className={cn(
                           "flex w-full flex-col gap-2 rounded-xl border border-border/80 bg-card/50 p-3 text-left shadow-sm transition-colors",
-                          "hover:border-primary/35 hover:bg-card/70",
+                          "hover:border-primary/35 hover:bg-card/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                           pri >= 1 && "border-amber-600/35 shadow-[0_0_0_1px_rgba(251,191,36,0.12)]"
                         )}
                       >
@@ -305,12 +314,13 @@ export function OrdersPage() {
                               variant={isPreparing ? "secondary" : "outline"}
                               className="h-7 px-2 text-[11px]"
                               disabled={updateMut.isPending}
-                              onClick={() =>
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 void updateMut.mutateAsync({
                                   id: o.id,
                                   patch: { estado: isPreparing ? "pendiente" : "en_preparacion" },
-                                })
-                              }
+                                });
+                              }}
                             >
                               {isPreparing ? "Pasar a pendiente" : "Pasar a preparación"}
                             </Button>
@@ -319,7 +329,10 @@ export function OrdersPage() {
                             type="button"
                             size="sm"
                             className="h-7 px-2 text-[11px]"
-                            onClick={() => setDeliverOrder(o)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeliverOrder(o);
+                            }}
                           >
                             Entregar
                           </Button>
@@ -328,7 +341,10 @@ export function OrdersPage() {
                             size="sm"
                             variant="ghost"
                             className="h-7 px-2 text-[11px]"
-                            onClick={() => setDetailId(o.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDetailId(o.id);
+                            }}
                           >
                             Detalle
                           </Button>
