@@ -263,7 +263,7 @@ export function OrdersPage() {
                         className={cn(
                           "flex w-full flex-col gap-2 rounded-xl border border-border/80 bg-card/50 p-3 text-left shadow-sm transition-colors",
                           "hover:border-primary/35 hover:bg-card/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                          pri >= 1 && "border-amber-600/35 shadow-[0_0_0_1px_rgba(251,191,36,0.12)]"
+                          pri >= 1 && "border-primary/40 shadow-[0_0_0_1px_hsl(var(--primary)/0.22)]"
                         )}
                       >
                         <div className="flex items-start justify-between gap-2">
@@ -284,7 +284,7 @@ export function OrdersPage() {
                             {o.estado.replace(/_/g, " ")}
                           </span>
                           {showCobertura && alcanza === false ? (
-                            <span className="rounded-md border border-amber-700/50 bg-amber-950/25 px-1.5 py-0.5 text-[9px] text-amber-200">
+                            <span className="rounded-md border border-primary/45 bg-primary/18 px-1.5 py-0.5 text-[9px] text-foreground">
                               FIFO
                             </span>
                           ) : null}

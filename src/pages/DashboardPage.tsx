@@ -115,12 +115,12 @@ export function DashboardPage() {
                   {total > 0 ? (
                     <>
                       <div
-                        className="h-full bg-amber-500/80 transition-all"
+                        className="h-full bg-primary/65 transition-all"
                         style={{ width: `${reservPct}%` }}
                         title={`Reservado ${reservPct.toFixed(0)}%`}
                       />
                       <div
-                        className="h-full bg-emerald-500/85 transition-all"
+                        className="h-full bg-foreground/35 transition-all"
                         style={{ width: `${librePct}%` }}
                         title={`Libre ${librePct.toFixed(0)}%`}
                       />
@@ -131,12 +131,12 @@ export function DashboardPage() {
                 </div>
                 <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs">
                   <span className="inline-flex items-center gap-1.5">
-                    <span className="size-2 rounded-full bg-amber-500/80" />
+                    <span className="size-2 rounded-full bg-primary/70" />
                     Reservado (lotes){" "}
                     <strong className="tabular-nums text-foreground">{fmtKgDisplay(reservado, stock.isLoading)}</strong> kg
                   </span>
                   <span className="inline-flex items-center gap-1.5">
-                    <span className="size-2 rounded-full bg-emerald-500/85" />
+                    <span className="size-2 rounded-full bg-foreground/40" />
                     Libre{" "}
                     <strong className="tabular-nums text-foreground">{fmtKgDisplay(libre, stock.isLoading)}</strong> kg
                   </span>
@@ -182,8 +182,8 @@ export function DashboardPage() {
                 className={cn(
                   "flex items-center justify-between rounded-lg border px-3 py-3",
                   Number(falta) > 0.001
-                    ? "border-red-900/50 bg-red-950/25"
-                    : "border-emerald-900/40 bg-emerald-950/20"
+                    ? "border-primary/45 bg-primary/18"
+                    : "border-border/80 bg-muted/30"
                 )}
               >
                 <span className="text-sm font-medium text-foreground">Falta preparar</span>

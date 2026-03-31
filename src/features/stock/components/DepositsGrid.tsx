@@ -17,9 +17,9 @@ function fmtKg(n: number) {
 
 function barTone(pct: number | null): { bar: string; track: string } {
   if (pct === null || Number.isNaN(pct)) return { bar: "bg-muted-foreground/30", track: "bg-muted/80" };
-  if (pct >= 70) return { bar: "bg-emerald-500/90", track: "bg-muted/80" };
-  if (pct >= 30) return { bar: "bg-amber-500/85", track: "bg-muted/80" };
-  return { bar: "bg-red-500/85", track: "bg-muted/80" };
+  if (pct >= 70) return { bar: "bg-primary/80", track: "bg-muted/80" };
+  if (pct >= 30) return { bar: "bg-foreground/45", track: "bg-muted/80" };
+  return { bar: "bg-destructive/70", track: "bg-muted/80" };
 }
 
 export function DepositsGrid(props: Props) {
@@ -113,7 +113,7 @@ export function DepositsGrid(props: Props) {
                     </span>
                   </>
                 ) : (
-                  <span className="text-emerald-400/90">Completo</span>
+                  <span className="text-primary">Completo</span>
                 )}
               </div>
             </button>

@@ -135,11 +135,11 @@ function MetricPill(props: {
 }) {
   const tone =
     props.tone === "success"
-      ? "border-emerald-700/40 bg-emerald-950/40"
+      ? "border-primary/40 bg-primary/12"
       : props.tone === "warning"
-        ? "border-amber-700/40 bg-amber-950/40"
+        ? "border-primary/35 bg-primary/10"
         : props.tone === "danger"
-          ? "border-red-700/40 bg-red-950/40"
+          ? "border-primary/45 bg-primary/16"
           : "border-border bg-card";
 
   return (

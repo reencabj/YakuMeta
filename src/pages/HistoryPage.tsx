@@ -24,7 +24,7 @@ function EventBadge(props: { kind: string; source: string }) {
   const tone =
     props.source === "audit"
       ? "border-primary/40 bg-primary/15 text-primary"
-      : "border-sky-700/40 bg-sky-950/40 text-sky-200";
+      : "border-border bg-muted/70 text-foreground";
   return (
     <Badge variant="outline" className={cn("font-mono text-[10px]", tone)}>
       {props.kind}

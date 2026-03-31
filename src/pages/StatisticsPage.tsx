@@ -463,7 +463,7 @@ export function StatisticsPage() {
           {seriesPoints.length === 0 && !report.isLoading ? (
             <p className="text-sm text-muted-foreground">Sin entregas en el período.</p>
           ) : (
-            <MiniBars points={seriesPoints} color="bg-emerald-500/90" color2="bg-sky-500/80" />
+            <MiniBars points={seriesPoints} color="bg-primary/80" color2="bg-foreground/35" />
           )}
         </PanelCard>
 
@@ -623,8 +623,8 @@ export function StatisticsPage() {
                     className={cn(
                       "rounded-md px-2 py-0.5 text-xs font-medium",
                       r.riesgo === "vencido" && "bg-red-950/50 text-red-200",
-                      r.riesgo === "critico" && "bg-amber-950/50 text-amber-200",
-                      r.riesgo === "warning" && "bg-yellow-950/40 text-yellow-100",
+                      r.riesgo === "critico" && "bg-primary/18 text-foreground",
+                      r.riesgo === "warning" && "bg-muted/70 text-foreground",
                       r.riesgo === "ok" && "bg-muted text-muted-foreground"
                     )}
                   >

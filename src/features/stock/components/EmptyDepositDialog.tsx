@@ -60,7 +60,7 @@ export function EmptyDepositDialog(props: Props) {
               await props.onSubmit({ deposito_id: d.id, motivo: values.motivo });
             })}
           >
-            <p className="text-sm text-amber-200/90">
+            <p className="text-sm text-primary">
               Stock actual aproximado: {d.total_meta_kg.toLocaleString("es-AR")} kg meta en este depósito.
             </p>
             <div className="space-y-2">

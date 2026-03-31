@@ -117,12 +117,12 @@ export function StorageGroupsSection(props: Props) {
             ) : recommendQ.error ? (
               <span className="text-red-400">Error: {String(recommendQ.error)}</span>
             ) : (recommendQ.data ?? []).length === 0 ? (
-              <span className="text-amber-200/90">
+              <span className="text-primary">
                 Ningún grupo activo tiene stock libre ≥ {fmt(previewNum)} kg.
               </span>
             ) : (
               <div className="space-y-1">
-                <p className="font-medium text-emerald-200/90">
+                <p className="font-medium text-primary">
                   Grupos que cubren {fmt(previewNum)} kg (stock libre suficiente):
                 </p>
                 <ul className="list-inside list-disc text-muted-foreground">
@@ -331,7 +331,7 @@ function StorageGroupCard(props: CardProps) {
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="text-amber-200"
+                  className="text-primary"
                   disabled={props.setActivePending}
                   onClick={props.onToggleActive}
                 >

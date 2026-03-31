@@ -145,7 +145,7 @@ export function DeliverOrderDialog(props: Props) {
         </DialogHeader>
 
         {!sumOk && lines.length > 0 ? (
-          <p className="text-sm text-amber-200">
+          <p className="text-sm text-primary">
             Suma de líneas {sumKg.toFixed(2)} kg — debe coincidir con el pedido ({orderKg.toFixed(2)} kg).
           </p>
         ) : null}

@@ -114,7 +114,7 @@ export function DepositsTable(props: Props) {
                           onClick={() => props.onEmptyDeposit?.(d)}
                           disabled={!d.is_active || d.total_meta_kg <= 0}
                         >
-                          <Warehouse className="size-4 text-amber-200" />
+                          <Warehouse className="size-4 text-primary" />
                         </Button>
                       ) : null}
                     </div>

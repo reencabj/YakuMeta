@@ -95,7 +95,7 @@ export function DepositDetailDialog(props: Props) {
               </div>
               <div>
                 <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Faltan</p>
-                <p className="font-mono tabular-nums text-amber-200/90">
+                <p className="font-mono tabular-nums text-primary">
                   {bag.faltanBolsas > 0 ? `${bag.faltanBolsas} (${bag.packs3Faltantes}p+${bag.individualesFaltantes}i)` : "—"}
                 </p>
               </div>
@@ -201,7 +201,7 @@ export function DepositDetailDialog(props: Props) {
             <Button
               type="button"
               variant="outline"
-              className="gap-2 border-amber-700/50 text-amber-200 hover:bg-amber-950/40"
+              className="gap-2 border-primary/45 text-primary hover:bg-primary/12"
               onClick={props.onEmptyDeposit}
               disabled={!d?.is_active || !d || d.total_meta_kg <= 0}
             >

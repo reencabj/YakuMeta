@@ -40,12 +40,12 @@ export function OrderPriorityStars({ prioridad }: { prioridad: number | null | u
   const n = normalizaPrioridad(prioridad);
   if (n === 0) return null;
   if (n === 1) {
-    return <Star className="size-3.5 shrink-0 fill-amber-400 text-amber-400" aria-hidden />;
+    return <Star className="size-3.5 shrink-0 fill-primary text-primary" aria-hidden />;
   }
   return (
     <span className="inline-flex shrink-0 items-center gap-px" title="Prioridad alta">
-      <Star className="size-3.5 fill-amber-400 text-amber-400" aria-hidden />
-      <Star className="size-3.5 fill-amber-400 text-amber-400" aria-hidden />
+      <Star className="size-3.5 fill-primary text-primary" aria-hidden />
+      <Star className="size-3.5 fill-primary text-primary" aria-hidden />
     </span>
   );
 }
@@ -53,11 +53,11 @@ export function OrderPriorityStars({ prioridad }: { prioridad: number | null | u
 export function estadoBadgeClass(estado: string): string {
   switch (estado) {
     case "pendiente":
-      return "border-slate-600/60 bg-slate-800/50 text-slate-200";
+      return "border-border bg-muted text-foreground";
     case "en_preparacion":
-      return "border-sky-600/60 bg-sky-950/40 text-sky-200";
+      return "border-primary/45 bg-primary/15 text-foreground";
     case "entregado":
-      return "border-emerald-700/50 bg-emerald-900/30 text-emerald-100";
+      return "border-primary/30 bg-primary/10 text-foreground";
     case "cancelado":
       return "border-border bg-muted text-muted-foreground";
     default:

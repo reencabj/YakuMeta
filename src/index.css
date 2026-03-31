@@ -4,23 +4,23 @@
 
 @layer base {
   :root {
-    --background: 222 47% 6%;
-    --foreground: 210 40% 98%;
-    --card: 222 40% 9%;
-    --card-foreground: 210 40% 98%;
-    --primary: 152 69% 45%;
-    --primary-foreground: 222 47% 6%;
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 217 33% 17%;
-    --accent-foreground: 210 40% 98%;
+    --background: 240 8% 6%;
+    --foreground: 240 6% 96%;
+    --card: 240 8% 9%;
+    --card-foreground: 240 6% 96%;
+    --primary: 270 45% 60%;
+    --primary-foreground: 240 12% 10%;
+    --secondary: 240 6% 16%;
+    --secondary-foreground: 240 6% 96%;
+    --muted: 240 6% 16%;
+    --muted-foreground: 240 5% 64%;
+    --accent: 240 6% 16%;
+    --accent-foreground: 240 6% 96%;
     --destructive: 0 72% 51%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217 33% 20%;
-    --input: 217 33% 20%;
-    --ring: 152 69% 45%;
+    --destructive-foreground: 240 6% 96%;
+    --border: 240 6% 20%;
+    --input: 240 6% 20%;
+    --ring: 270 45% 60%;
     --radius: 0.5rem;
   }
 
@@ -30,5 +30,8 @@
 
   body {
     @apply bg-background text-foreground;
+    background-image:
+      radial-gradient(circle at 12% 8%, hsl(var(--primary) / 0.15), transparent 36%),
+      radial-gradient(circle at 88% 96%, hsl(var(--foreground) / 0.09), transparent 42%);
   }
 }

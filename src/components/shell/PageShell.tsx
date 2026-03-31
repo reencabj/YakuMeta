@@ -45,19 +45,19 @@ export function StatTile(props: {
   const Icon = props.icon;
   const toneRing =
     props.tone === "amber"
-      ? "from-amber-500/20 to-transparent"
+      ? "from-primary/18 to-transparent"
       : props.tone === "emerald"
-        ? "from-emerald-500/20 to-transparent"
+        ? "from-primary/16 to-transparent"
         : props.tone === "rose"
-          ? "from-rose-500/25 to-transparent"
-          : "from-slate-500/15 to-transparent";
+          ? "from-primary/20 to-transparent"
+          : "from-foreground/10 to-transparent";
 
   return (
     <div
       className={cn(
         "relative flex flex-col justify-between overflow-hidden rounded-2xl border shadow-sm",
         "border-border/80 bg-gradient-to-br from-card via-card to-muted/20",
-        props.emphasize && "ring-1 ring-red-900/40",
+        props.emphasize && "ring-1 ring-primary/35",
         props.dense ? "p-4" : "p-5"
       )}
     >
@@ -67,10 +67,10 @@ export function StatTile(props: {
           className={cn(
             "flex shrink-0 items-center justify-center rounded-xl border border-border/60 bg-background/80",
             props.dense ? "size-9" : "size-10",
-            props.tone === "rose" && "text-rose-300",
-            props.tone === "amber" && "text-amber-300",
-            props.tone === "emerald" && "text-emerald-300",
-            props.tone === "slate" && "text-slate-300"
+            props.tone === "rose" && "text-primary/90",
+            props.tone === "amber" && "text-primary/90",
+            props.tone === "emerald" && "text-primary/90",
+            props.tone === "slate" && "text-foreground/80"
           )}
         >
           <Icon className={props.dense ? "size-4" : "size-5"} aria-hidden />
@@ -157,7 +157,7 @@ export function SegmentTabs(props: {
           className={cn(
             "rounded-lg px-3 py-1.5 font-medium transition-colors",
             props.value === opt.value
-              ? "bg-card text-foreground shadow-sm"
+              ? "bg-primary/20 text-foreground shadow-sm ring-1 ring-primary/25"
               : "text-muted-foreground hover:text-foreground"
           )}
           onClick={() => props.onChange(opt.value)}
