@@ -69,7 +69,9 @@ Deno.serve(async (req) => {
     const email = (body.email ?? "").trim().toLowerCase();
     const username = (body.username ?? "").trim().toLowerCase();
     const displayName = body.display_name?.trim() ? body.display_name.trim() : null;
-    const role: "admin" | "user" = body.role === "admin" ? "admin" : "user";
+    const roleRaw = (body.role ?? "user").trim().toLowerCase();
+    const role: "admin" | "user" | "cliente" =
+      roleRaw === "admin" ? "admin" : roleRaw === "cliente" ? "cliente" : "user";
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return new Response(JSON.stringify({ error: "invalid_email" }), { status: 400, headers });

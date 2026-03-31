@@ -7,15 +7,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export function AuthRecoveryPage() {
-  const { session, loading, updatePassword } = useAuth();
+  const { session, loading, profileLoading, updatePassword } = useAuth();
   const navigate = useNavigate();
+  const sessionBusy = loading || (Boolean(session?.user) && profileLoading);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  if (loading) {
+  if (sessionBusy) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-4 text-sm text-muted-foreground">
         Validando enlace…

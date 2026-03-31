@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/auth/AuthProvider";
 import { AppShell } from "@/components/layout/AppShell";
+import { ClientePortalOnlyPage } from "@/pages/ClientePortalOnlyPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { AuthCallbackPage } from "@/pages/AuthCallbackPage";
 import { AuthRecoveryPage } from "@/pages/AuthRecoveryPage";
@@ -13,9 +14,10 @@ import { OrdersPage } from "@/features/orders/OrdersPage";
 import { StockPage } from "@/features/stock/StockPage";
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
-  const { session, loading } = useAuth();
+  const { session, loading, profileLoading } = useAuth();
+  const sessionBusy = loading || (Boolean(session?.user) && profileLoading);
 
-  if (loading) {
+  if (sessionBusy) {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
         Cargando sesión…
@@ -27,6 +29,14 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
     return <Navigate to="/login" replace />;
   }
 
+  return children;
+}
+
+function StaffAppGate({ children }: { children: ReactNode }) {
+  const { profile } = useAuth();
+  if (profile?.role === "cliente") {
+    return <ClientePortalOnlyPage />;
+  }
   return children;
 }
 
@@ -48,7 +58,9 @@ function AppRoutes() {
         path="/"
         element={
           <ProtectedRoute>
-            <AppShell />
+            <StaffAppGate>
+              <AppShell />
+            </StaffAppGate>
           </ProtectedRoute>
         }
       >

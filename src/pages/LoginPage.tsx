@@ -17,7 +17,7 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 export function LoginPage() {
-  const { signIn, session, requestPasswordReset } = useAuth();
+  const { signIn, session, profileLoading, requestPasswordReset } = useAuth();
   const navigate = useNavigate();
   const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { email: "", password: "" } });
   const [showForgot, setShowForgot] = useState(false);
@@ -26,8 +26,8 @@ export function LoginPage() {
   const [resetBusy, setResetBusy] = useState(false);
 
   useEffect(() => {
-    if (session) navigate("/", { replace: true });
-  }, [session, navigate]);
+    if (session && !profileLoading) navigate("/", { replace: true });
+  }, [session, profileLoading, navigate]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">

@@ -92,7 +92,7 @@ type InviteUserBody = {
   email: string;
   username: string;
   display_name?: string | null;
-  role?: "admin" | "user";
+  role?: "admin" | "user" | "cliente";
 };
 
 export async function inviteUserViaEdge(body: InviteUserBody): Promise<{ ok: true; user_id: string }> {

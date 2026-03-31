@@ -33,7 +33,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { Database } from "@/types/database";
+import type { Database, UserRole } from "@/types/database";
 import { cn } from "@/lib/utils";
 
 type Tab = "users" | "types" | "settings" | "pricing" | "groups" | "maintenance";
@@ -96,7 +96,7 @@ export function AdminPage() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteUsername, setInviteUsername] = useState("");
   const [inviteDisplayName, setInviteDisplayName] = useState("");
-  const [inviteRole, setInviteRole] = useState<"user" | "admin">("user");
+  const [inviteRole, setInviteRole] = useState<UserRole>("user");
   const [newTypeName, setNewTypeName] = useState("");
   const [editRule, setEditRule] = useState<PricingRuleRow | null>(null);
   const [newRuleOpen, setNewRuleOpen] = useState(false);
@@ -221,7 +221,11 @@ export function AdminPage() {
                     <span
                       className={cn(
                         "rounded-md px-2 py-0.5 text-xs",
-                        p.role === "admin" ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"
+                        p.role === "admin"
+                          ? "bg-primary/20 text-primary"
+                          : p.role === "cliente"
+                            ? "bg-secondary/80 text-secondary-foreground"
+                            : "bg-muted text-muted-foreground"
                       )}
                     >
                       {p.role}
@@ -275,10 +279,11 @@ export function AdminPage() {
                   <select
                     className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
                     value={inviteRole}
-                    onChange={(e) => setInviteRole(e.target.value as "admin" | "user")}
+                    onChange={(e) => setInviteRole(e.target.value as UserRole)}
                   >
-                    <option value="user">user</option>
+                    <option value="user">user (staff)</option>
                     <option value="admin">admin</option>
+                    <option value="cliente">cliente (portal pedidos)</option>
                   </select>
                 </div>
                 <DialogFooter>
@@ -571,7 +576,7 @@ function ProfileEditForm(props: {
 }) {
   const [username, setUsername] = useState(props.profile.username);
   const [displayName, setDisplayName] = useState(props.profile.display_name ?? "");
-  const [role, setRole] = useState<"admin" | "user">(props.profile.role);
+  const [role, setRole] = useState<UserRole>(props.profile.role);
   const [active, setActive] = useState(props.profile.is_active);
 
   return (
@@ -590,10 +595,11 @@ function ProfileEditForm(props: {
         <select
           className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
           value={role}
-          onChange={(e) => setRole(e.target.value as "admin" | "user")}
+          onChange={(e) => setRole(e.target.value as UserRole)}
         >
-          <option value="user">user</option>
+          <option value="user">user (staff)</option>
           <option value="admin">admin</option>
+          <option value="cliente">cliente (portal)</option>
         </select>
       </div>
       <label className="flex items-center gap-2 text-sm">
