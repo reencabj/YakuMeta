@@ -52,6 +52,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 
 const ESTADOS: (OrderState | "all")[] = ["all", "pendiente", "en_preparacion", "entregado", "cancelado"];
+const BOLSAS_POR_TIRADA = 30; // 10 packs x 3 bolsitas
 
 export function OrdersPage() {
   const ordersQ = useOrdersQuery();
@@ -120,6 +121,9 @@ export function OrdersPage() {
       }),
     []
   );
+  const faltaNum = Number(pedidosKpi.data?.faltante_preparar_kg ?? 0);
+  const faltaPositiva = Number.isFinite(faltaNum) ? Math.max(0, faltaNum) : 0;
+  const tiradasNecesarias = Math.ceil((faltaPositiva * BOLSAS_PER_KG_META) / BOLSAS_POR_TIRADA);
 
   return (
     <PageShell>
@@ -167,9 +171,9 @@ export function OrdersPage() {
         <StatTile
           dense
           icon={Package}
-          label="Stock libre"
-          value={fmtKgDisplay(pedidosKpi.data?.total_stock_disponible_kg, pedidosKpi.isLoading)}
-          unit="kg meta"
+          label="Tiradas necesarias"
+          value={pedidosKpi.isLoading ? "…" : String(tiradasNecesarias)}
+          unit="tiradas"
           tone="emerald"
         />
         <StatTile

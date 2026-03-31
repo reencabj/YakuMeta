@@ -27,6 +27,9 @@ const nav = [
   { to: "/admin", label: "Admin", icon: Settings, adminOnly: true },
 ];
 
+const BOLSAS_POR_KG_META = 50;
+const BOLSAS_POR_TIRADA = 30; // 10 packs x 3 bolsitas
+
 export function AppShell() {
   const { profile, signOut } = useAuth();
   const settingsQ = useAppSettingsQuery();
@@ -34,6 +37,9 @@ export function AppShell() {
   const pedidosKpi = usePedidosKpiQuery();
 
   const appTitle = settingsQ.data?.app_name?.trim() || DEFAULT_APP_TITLE;
+  const faltaNum = Number(pedidosKpi.data?.faltante_preparar_kg ?? 0);
+  const faltaPositiva = Number.isFinite(faltaNum) ? Math.max(0, faltaNum) : 0;
+  const tiradasNecesarias = Math.ceil((faltaPositiva * BOLSAS_POR_KG_META) / BOLSAS_POR_TIRADA);
 
   useEffect(() => {
     document.title = appTitle;
@@ -104,10 +110,11 @@ export function AppShell() {
                 tone="warning"
               />
               <MetricPill
-                label="Libre"
-                value={stock.data?.total_libre_kilos?.toFixed(2) ?? "—"}
-                loading={stock.isLoading}
+                label="Tiradas necesarias"
+                value={String(tiradasNecesarias)}
+                loading={pedidosKpi.isLoading}
                 tone="success"
+                unit="tiradas"
               />
               <MetricPill
                 label="Falta preparar"
@@ -132,6 +139,7 @@ function MetricPill(props: {
   value: string;
   loading?: boolean;
   tone?: "default" | "success" | "warning" | "danger";
+  unit?: string;
 }) {
   const tone =
     props.tone === "success"
@@ -152,7 +160,7 @@ function MetricPill(props: {
       <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{props.label}</p>
       <p className="mt-0.5 font-semibold tabular-nums text-sm text-foreground">
         {props.loading ? "…" : props.value}
-        <span className="ml-1 text-[11px] font-normal text-muted-foreground">kg</span>
+        <span className="ml-1 text-[11px] font-normal text-muted-foreground">{props.unit ?? "kg"}</span>
       </p>
     </div>
   );

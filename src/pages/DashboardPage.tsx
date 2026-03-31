@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
   ArrowRight,
@@ -9,26 +10,61 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader, PageShell, PanelCard, StatTile } from "@/components/shell";
+import { useAppSettingsQuery } from "@/hooks/useAppSettingsQuery";
 import { useGlobalStockSummary, usePedidosKpiQuery } from "@/hooks/useGlobalStockSummary";
 import { fmtKgDisplay } from "@/lib/format-kilo";
+import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
+
+const BOLSAS_POR_KG_META = 50;
+const BOLSAS_POR_TIRADA = 30; // 10 packs x 3 bolsitas
+
+function fmtInt(n: number) {
+  return new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 }).format(n);
+}
+
+function fmtHalfStep(n: number) {
+  const roundedToHalf = Math.round(n * 2) / 2;
+  const frac = Math.abs(roundedToHalf - Math.trunc(roundedToHalf));
+  return new Intl.NumberFormat("es-AR", {
+    minimumFractionDigits: frac === 0.5 ? 2 : 0,
+    maximumFractionDigits: frac === 0.5 ? 2 : 0,
+  }).format(roundedToHalf);
+}
 
 export function DashboardPage() {
   const stock = useGlobalStockSummary();
   const pedidosKpi = usePedidosKpiQuery();
+  const settingsQ = useAppSettingsQuery();
+  const capQ = useQuery({
+    queryKey: ["storage-capacidad-total-dashboard"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("storage_locations")
+        .select("capacidad_guardado_kg")
+        .eq("is_active", true);
+      if (error) throw error;
+      return (data ?? []).reduce((acc, r) => acc + Number(r.capacidad_guardado_kg ?? 0), 0);
+    },
+  });
 
   const total = stock.data?.total_meta_kilos ?? 0;
-  const reservado = stock.data?.total_reservado_kilos ?? 0;
-  const libre = stock.data?.total_libre_kilos ?? 0;
-  const librePct = total > 0 ? Math.min(100, (libre / total) * 100) : 0;
-  const reservPct = total > 0 ? Math.min(100, (reservado / total) * 100) : 0;
+  const kgPesoPorKgMeta = Number(settingsQ.data?.kg_guardado_por_1kg_meta ?? 120);
+  const capacidadTotalPeso = capQ.data ?? 0;
+  const capacidadTotalMetaRaw = kgPesoPorKgMeta > 0 ? capacidadTotalPeso / kgPesoPorKgMeta : 0;
+  const capacidadTotalMeta = Math.max(0, Math.floor(capacidadTotalMetaRaw));
+  const ocupacionPct = capacidadTotalMeta > 0 ? Math.min(100, (total / capacidadTotalMeta) * 100) : 0;
 
   const pedidosCount = pedidosKpi.data?.pedidos_abiertos_count;
   const pedidosKg = pedidosKpi.data?.total_pedidos_abiertos_kg;
   const stockKpi = pedidosKpi.data?.total_stock_disponible_kg;
   const falta = pedidosKpi.data?.faltante_preparar_kg;
+  const faltaNum = Number(falta ?? 0);
+  const faltaPositiva = Number.isFinite(faltaNum) ? Math.max(0, faltaNum) : 0;
+  const tiradasNecesarias = Math.ceil((faltaPositiva * BOLSAS_POR_KG_META) / BOLSAS_POR_TIRADA);
 
   const loading = stock.isLoading || pedidosKpi.isLoading;
+  const capLoading = capQ.isLoading;
 
   return (
     <PageShell>
@@ -76,10 +112,10 @@ export function DashboardPage() {
         />
         <StatTile
           icon={Package}
-          label="Stock libre"
-          value={fmtKgDisplay(stock.data?.total_libre_kilos, stock.isLoading)}
-          unit="kg meta"
-          hint="Disponible para asignar"
+          label="Tiradas necesarias"
+          value={pedidosKpi.isLoading ? "…" : String(tiradasNecesarias)}
+          unit="tiradas"
+          hint="Estimado para cubrir 'Falta preparar' (redondeo hacia arriba)"
           tone="emerald"
         />
         <StatTile
@@ -98,33 +134,26 @@ export function DashboardPage() {
           className="min-h-[280px]"
           icon={Package}
           title="Stock global"
-          description="Distribución de meta entre depósitos (reservado vs libre)."
+          description="Ocupación del almacenamiento total de depósitos activos."
         >
           <div className="flex flex-1 flex-col justify-between gap-6">
             <div className="space-y-4">
               <div className="flex items-baseline justify-between gap-4">
-                <span className="text-sm text-muted-foreground">Total</span>
+                <span className="text-sm text-muted-foreground">Total (Capacidad total de almacenamiento)</span>
                 <span className="text-2xl font-semibold tabular-nums tracking-tight">
-                  {fmtKgDisplay(total, stock.isLoading)}{" "}
+                  {capLoading || settingsQ.isLoading ? "…" : fmtInt(capacidadTotalMeta)}{" "}
                   <span className="text-base font-normal text-muted-foreground">kg</span>
                 </span>
               </div>
 
               <div className="space-y-2">
-                <div className="flex h-4 w-full overflow-hidden rounded-full bg-muted">
-                  {total > 0 ? (
-                    <>
-                      <div
-                        className="h-full bg-primary/65 transition-all"
-                        style={{ width: `${reservPct}%` }}
-                        title={`Reservado ${reservPct.toFixed(0)}%`}
-                      />
-                      <div
-                        className="h-full bg-foreground/35 transition-all"
-                        style={{ width: `${librePct}%` }}
-                        title={`Libre ${librePct.toFixed(0)}%`}
-                      />
-                    </>
+                <div className="flex h-4 w-full overflow-hidden rounded-full bg-secondary/85">
+                  {capacidadTotalMeta > 0 ? (
+                    <div
+                      className="h-full bg-primary transition-all"
+                      style={{ width: `${ocupacionPct}%` }}
+                      title={`Ocupado ${ocupacionPct.toFixed(0)}%`}
+                    />
                   ) : (
                     <div className="h-full w-full bg-muted-foreground/20" />
                   )}
@@ -132,19 +161,27 @@ export function DashboardPage() {
                 <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs">
                   <span className="inline-flex items-center gap-1.5">
                     <span className="size-2 rounded-full bg-primary/70" />
-                    Reservado (lotes){" "}
-                    <strong className="tabular-nums text-foreground">{fmtKgDisplay(reservado, stock.isLoading)}</strong> kg
+                    Ocupado{" "}
+                    <strong className="tabular-nums text-foreground">
+                      {stock.isLoading ? "…" : fmtHalfStep(total)}
+                    </strong>{" "}
+                    kg
                   </span>
                   <span className="inline-flex items-center gap-1.5">
-                    <span className="size-2 rounded-full bg-foreground/40" />
-                    Libre{" "}
-                    <strong className="tabular-nums text-foreground">{fmtKgDisplay(libre, stock.isLoading)}</strong> kg
+                    <span className="size-2 rounded-full bg-secondary" />
+                    Disponible{" "}
+                    <strong className="tabular-nums text-foreground">
+                      {capLoading || stock.isLoading || settingsQ.isLoading
+                        ? "…"
+                        : fmtHalfStep(capacidadTotalMetaRaw - total)}
+                    </strong>{" "}
+                    kg
                   </span>
                 </div>
               </div>
             </div>
             <p className="text-[11px] leading-relaxed text-muted-foreground">
-              El reservado refiere cantidad amarrada a lotes; el pedido ya no usa reservas manuales por comanda.
+              Capacidad convertida de kg peso a kg meta usando 1 kg meta = {kgPesoPorKgMeta} kg peso.
             </p>
           </div>
         </PanelCard>
