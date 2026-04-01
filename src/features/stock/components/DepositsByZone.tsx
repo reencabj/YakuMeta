@@ -11,6 +11,8 @@ type Props = {
   depositSort: DepositSortMode;
   onSelectDeposit: (d: DepositRowModel) => void;
   onExtractDeposit?: (d: DepositRowModel) => void;
+  onQuickAdjust?: (d: DepositRowModel, deltaKg: number) => void;
+  quickAdjustBusy?: boolean;
 };
 
 const ZONE_ICONS: LucideIcon[] = [MapPin, Building2, Landmark, Home, Factory, Trees];
@@ -57,6 +59,8 @@ export function DepositsByZone(props: Props) {
           deposits={singleZone.deposits}
           onSelectDeposit={props.onSelectDeposit}
           onExtractDeposit={props.onExtractDeposit}
+          onQuickAdjust={props.onQuickAdjust}
+          quickAdjustBusy={props.quickAdjustBusy}
         />
       </div>
     );
@@ -93,6 +97,8 @@ export function DepositsByZone(props: Props) {
           deposits={activeGroup.deposits}
           onSelectDeposit={props.onSelectDeposit}
           onExtractDeposit={props.onExtractDeposit}
+          onQuickAdjust={props.onQuickAdjust}
+          quickAdjustBusy={props.quickAdjustBusy}
         />
       </div>
     );
@@ -102,7 +108,7 @@ export function DepositsByZone(props: Props) {
     <div
       className={cn(
         "grid gap-4",
-        "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+        "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
       )}
     >
       {groups.map((g) => {
@@ -113,7 +119,7 @@ export function DepositsByZone(props: Props) {
             type="button"
             onClick={() => setSelectedKey(g.key)}
             className={cn(
-              "group flex flex-col gap-3 rounded-xl border border-border/80 bg-card p-4 text-left shadow-sm",
+              "group flex flex-col gap-2.5 rounded-xl border border-border/80 bg-card px-3.5 py-3 text-left shadow-sm",
               "transition-all duration-200 hover:border-primary/45 hover:shadow-md hover:-translate-y-0.5",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             )}
@@ -121,22 +127,22 @@ export function DepositsByZone(props: Props) {
             <div className="flex items-start gap-3">
               <div
                 className={cn(
-                  "flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-border/60 bg-muted/40",
+                  "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-muted/40",
                   "text-muted-foreground transition-colors group-hover:border-primary/30 group-hover:text-primary"
                 )}
               >
-                <Icon className="h-6 w-6" aria-hidden />
+                <Icon className="h-5 w-5" aria-hidden />
               </div>
               <div className="min-w-0 flex-1">
-                <h3 className="truncate text-lg font-semibold leading-tight tracking-tight">{g.label}</h3>
-                <p className="text-sm text-muted-foreground">
+                <h3 className="truncate text-base font-semibold leading-tight tracking-tight">{g.label}</h3>
+                <p className="text-xs text-muted-foreground">
                   {g.count} depósito{g.count === 1 ? "" : "s"}
                 </p>
               </div>
             </div>
-            <div className="border-t border-border/50 pt-3">
-              <p className="text-2xl font-semibold tabular-nums tracking-tight">
-                {fmtKg(g.totalKg)} <span className="text-lg font-normal text-muted-foreground">kg meta</span>
+            <div className="border-t border-border/50 pt-2.5">
+              <p className="text-xl font-semibold tabular-nums tracking-tight">
+                {fmtKg(g.totalKg)} <span className="text-sm font-normal text-muted-foreground">kg meta</span>
               </p>
             </div>
           </button>

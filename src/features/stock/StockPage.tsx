@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
+import { format } from "date-fns";
 import { Link } from "react-router-dom";
-import { ArrowRight, LayoutGrid, Package } from "lucide-react";
+import { ArrowRight, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader, PageShell, PanelCard, SegmentTabs } from "@/components/shell";
 import {
@@ -20,7 +21,6 @@ import { useStockOperationsMutations } from "@/hooks/useStockOperations";
 import { cn } from "@/lib/utils";
 import type { BatchWithRelations } from "@/services/stockBatchesService";
 import { AdjustStockDialog } from "./components/AdjustStockDialog";
-import { BatchesTable } from "./components/BatchesTable";
 import { DepositFormDialog } from "./components/DepositFormDialog";
 import { DepositDetailDialog } from "./components/DepositDetailDialog";
 import { DepositsByZone } from "./components/DepositsByZone";
@@ -36,7 +36,6 @@ type StockMainView = "deposits" | "groups";
 type DepositSort = "fullness" | "emptiness" | "nombre";
 type ActiveFilter = "all" | "active" | "inactive";
 type StockFilter = "all" | "with" | "without";
-type BatchSort = "fecha_desc" | "fecha_asc" | "venc_asc" | "venc_desc" | "kilos_desc" | "deposito";
 
 const selectClass = cn(
   "h-9 rounded-lg border border-border/60 bg-background/50 px-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -56,11 +55,6 @@ export function StockPage() {
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>("active");
   const [stockFilter, setStockFilter] = useState<StockFilter>("all");
   const [depositSort, setDepositSort] = useState<DepositSort>("fullness");
-
-  const [batchTipoFilter, setBatchTipoFilter] = useState<string>("all");
-  const [batchActiveFilter, setBatchActiveFilter] = useState<ActiveFilter>("all");
-  const [batchStockFilter, setBatchStockFilter] = useState<StockFilter>("all");
-  const [batchSort, setBatchSort] = useState<BatchSort>("fecha_desc");
 
   const [depositDialogOpen, setDepositDialogOpen] = useState(false);
   const [depositMode, setDepositMode] = useState<"create" | "edit">("create");
@@ -118,43 +112,6 @@ export function StockPage() {
 
     return list;
   }, [rows, tipoFilter, activeFilter, stockFilter, depositSort]);
-
-  const filteredSortedBatches = useMemo(() => {
-    const listRaw = batchesQ.data ?? [];
-    let list: BatchWithRelations[] = [...listRaw];
-
-    if (batchTipoFilter !== "all") {
-      list = list.filter((b) => b.deposito.tipo.id === batchTipoFilter);
-    }
-    if (batchActiveFilter === "active") list = list.filter((b) => b.deposito.is_active);
-    if (batchActiveFilter === "inactive") list = list.filter((b) => !b.deposito.is_active);
-    if (batchStockFilter === "with") list = list.filter((b) => Number(b.cantidad_meta_kilos) > 0);
-    if (batchStockFilter === "without") list = list.filter((b) => Number(b.cantidad_meta_kilos) <= 0);
-
-    list.sort((a, b) => {
-      if (batchSort === "deposito") {
-        return a.deposito.nombre.localeCompare(b.deposito.nombre, "es");
-      }
-      if (batchSort === "kilos_desc") {
-        return Number(b.cantidad_meta_kilos) - Number(a.cantidad_meta_kilos);
-      }
-      if (batchSort === "fecha_desc" || batchSort === "fecha_asc") {
-        const cmp = a.fecha_guardado < b.fecha_guardado ? -1 : a.fecha_guardado > b.fecha_guardado ? 1 : 0;
-        return batchSort === "fecha_desc" ? -cmp : cmp;
-      }
-      const ae = a.fecha_vencimiento_estimada;
-      const be = b.fecha_vencimiento_estimada;
-      if (!ae && !be) return 0;
-      if (!ae) return 1;
-      if (!be) return -1;
-      const cmp = ae < be ? -1 : ae > be ? 1 : 0;
-      return batchSort === "venc_asc" ? cmp : -cmp;
-    });
-
-    return list;
-  }, [batchesQ.data, batchTipoFilter, batchActiveFilter, batchStockFilter, batchSort]);
-
-  const settings = settingsQ.data;
 
   return (
     <PageShell className="gap-8">
@@ -284,121 +241,53 @@ export function StockPage() {
               </select>
             </label>
           </div>
-          {isLoading || depositsQuery.isFetching || metricsQuery.isFetching ? (
+          {isLoading ? (
             <p className="text-sm text-muted-foreground">Cargando depósitos…</p>
           ) : filteredSortedDeposits.length === 0 ? (
             <p className="text-sm text-muted-foreground">Ningún depósito con estos filtros.</p>
           ) : (
-            <DepositsByZone
-              deposits={filteredSortedDeposits}
-              depositSort={depositSort}
-              onSelectDeposit={(d) => {
-                setSelectedDepositDetail(d);
-                setDepositDetailOpen(true);
-              }}
-              onExtractDeposit={(d) => {
-                setExtractDepositRow(d);
-                setExtractDepositOpen(true);
-              }}
-            />
+            <div className="space-y-2">
+              {(depositsQuery.isFetching || metricsQuery.isFetching) ? (
+                <p className="text-xs text-muted-foreground">Actualizando datos…</p>
+              ) : null}
+              <DepositsByZone
+                deposits={filteredSortedDeposits}
+                depositSort={depositSort}
+                onSelectDeposit={(d) => {
+                  setSelectedDepositDetail(d);
+                  setDepositDetailOpen(true);
+                }}
+                onExtractDeposit={(d) => {
+                  setExtractDepositRow(d);
+                  setExtractDepositOpen(true);
+                }}
+                onQuickAdjust={(d, deltaKg) => {
+                  void (async () => {
+                    if (deltaKg < 0) {
+                      await stockOps.extractFromDeposit.mutateAsync({
+                        deposito_id: d.id,
+                        cantidad_meta_kilos: Math.abs(deltaKg),
+                        motivo: `Shortcut rápido ${deltaKg} kg`,
+                      });
+                      return;
+                    }
+                    await intakeMut.mutateAsync({
+                      deposito_id: d.id,
+                      cantidad_meta_kilos: deltaKg,
+                      fecha_guardado: format(new Date(), "yyyy-MM-dd"),
+                      observaciones: `Shortcut rápido +${deltaKg} kg`,
+                      metadata: { modo_ingreso: "selector_rapido", selector_kg: deltaKg },
+                    });
+                  })();
+                }}
+                quickAdjustBusy={stockOps.extractFromDeposit.isPending || intakeMut.isPending}
+              />
+            </div>
           )}
       </PanelCard>
       ) : (
         <StorageGroupsSection userId={user?.id} isAdmin={isAdmin} batches={batchesQ.data ?? []} />
       )}
-
-      <PanelCard
-        icon={LayoutGrid}
-        title="Lotes de stock"
-        description={
-          <>
-            Riesgo por antigüedad y bolsas (composición registrada o estimada por kg×50).{" "}
-            {isAdmin
-              ? "Admin: mover entre depósitos, ajustar cantidad o corregir composición — todo queda en movimientos y auditoría."
-              : null}
-          </>
-        }
-      >
-          <div className="mb-5 flex flex-wrap gap-3 text-sm">
-            <label className="flex flex-col gap-1">
-              <span className="text-xs text-muted-foreground">Tipo depósito</span>
-              <select className={selectClass} value={batchTipoFilter} onChange={(e) => setBatchTipoFilter(e.target.value)}>
-                <option value="all">Todos</option>
-                {(typesQ.data ?? []).map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.nombre}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs text-muted-foreground">Depósito activo</span>
-              <select
-                className={selectClass}
-                value={batchActiveFilter}
-                onChange={(e) => setBatchActiveFilter(e.target.value as ActiveFilter)}
-              >
-                <option value="all">Todos</option>
-                <option value="active">Sí</option>
-                <option value="inactive">No</option>
-              </select>
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs text-muted-foreground">Cantidad en lote</span>
-              <select
-                className={selectClass}
-                value={batchStockFilter}
-                onChange={(e) => setBatchStockFilter(e.target.value as StockFilter)}
-              >
-                <option value="all">Todos</option>
-                <option value="with">Con cantidad &gt; 0</option>
-                <option value="without">Sin cantidad</option>
-              </select>
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs text-muted-foreground">Orden</span>
-              <select className={selectClass} value={batchSort} onChange={(e) => setBatchSort(e.target.value as BatchSort)}>
-                <option value="fecha_desc">Fecha guardado (reciente primero)</option>
-                <option value="fecha_asc">Fecha guardado (antiguo primero)</option>
-                <option value="venc_asc">Vencimiento (más próximo)</option>
-                <option value="venc_desc">Vencimiento (más lejano)</option>
-                <option value="kilos_desc">Cantidad (mayor primero)</option>
-                <option value="deposito">Depósito (A-Z)</option>
-              </select>
-            </label>
-          </div>
-          {batchesQ.isLoading ? (
-            <p className="text-sm text-muted-foreground">Cargando lotes…</p>
-          ) : settings ? (
-            <BatchesTable
-              batches={filteredSortedBatches}
-              settings={settings}
-              isAdmin={isAdmin}
-              onTransfer={
-                isAdmin
-                  ? (b) => {
-                      setTransferInitialBatchId(b.id);
-                      setTransferOpen(true);
-                    }
-                  : undefined
-              }
-              onAdjust={isAdmin ? (b) => {
-                setAdjustBatch(b);
-                setAdjustOpen(true);
-              } : undefined}
-              onEditComposition={
-                isAdmin
-                  ? (b) => {
-                      setCompositionBatch(b);
-                      setCompositionOpen(true);
-                    }
-                  : undefined
-              }
-            />
-          ) : (
-            <p className="text-sm text-muted-foreground">Sin configuración para calcular riesgo visual.</p>
-          )}
-      </PanelCard>
 
       <DepositFormDialog
         open={depositDialogOpen}

@@ -9,6 +9,9 @@ type Props = {
   onSelectDeposit: (d: DepositRowModel) => void;
   /** Extracción FIFO parcial sin abrir el detalle (Stock). */
   onExtractDeposit?: (d: DepositRowModel) => void;
+  /** Ajuste rápido por depósito (delta en kg meta). */
+  onQuickAdjust?: (d: DepositRowModel, deltaKg: number) => void;
+  quickAdjustBusy?: boolean;
 };
 
 function fmtKg(n: number) {
@@ -35,6 +38,8 @@ export function DepositsGrid(props: Props) {
         const pct = d.ocupacion_pct;
         const tones = barTone(pct);
         const pctWidth = pct === null ? 0 : Math.min(100, Math.max(0, pct));
+        const capMeta = Number(d.capacidad_meta_kilos);
+        const espacioDisponibleMeta = Math.max(0, capMeta - Number(d.total_meta_kg));
         const bag = depositFaltanteBolsas(Number(d.capacidad_meta_kilos), d.total_meta_kg);
         const inactive = !d.is_active;
         const tooltip = [
@@ -118,21 +123,42 @@ export function DepositsGrid(props: Props) {
               </div>
             </button>
 
-            {props.onExtractDeposit && d.is_active && d.libre_meta_kg > 0 ? (
-              <div className="border-t border-border/60 bg-card/80 px-3 pb-3 pt-2">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  className="w-full"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    props.onExtractDeposit?.(d);
-                  }}
-                >
-                  Extraer stock
-                </Button>
+            {props.onExtractDeposit && d.is_active ? (
+              <div className="bg-card/80 px-3 pb-3 pt-0">
+                {props.onQuickAdjust ? (
+                  <div className="mt-1 grid grid-cols-4 gap-2">
+                    {[-1, -0.5, 0.5, 1].map((delta) => {
+                      const isNegative = delta < 0;
+                      const canApply = isNegative
+                        ? d.libre_meta_kg >= Math.abs(delta)
+                        : espacioDisponibleMeta + 1e-9 >= delta;
+                      const label = `${delta > 0 ? "+" : ""}${String(delta).replace(".", ",")} kg`;
+                      return (
+                        <Button
+                          key={delta}
+                          type="button"
+                          size="sm"
+                          variant={canApply ? "default" : "outline"}
+                          className={cn(
+                            "h-7 px-0 text-[11px]",
+                            canApply
+                              ? "bg-primary/90 text-primary-foreground hover:bg-primary"
+                              : "text-muted-foreground"
+                          )}
+                          disabled={props.quickAdjustBusy || !canApply}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            props.onQuickAdjust?.(d, delta);
+                          }}
+                          title={isNegative ? "Quitar stock" : "Agregar stock"}
+                        >
+                          {label}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </div>

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { format, subDays } from "date-fns";
+import { endOfMonth, endOfWeek, format, parseISO, startOfMonth, startOfWeek, subDays } from "date-fns";
 import {
   ArrowDownRight,
   BarChart3,
@@ -9,7 +9,6 @@ import {
   Truck,
   Wallet,
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/auth/AuthProvider";
 import { PageHeader, PageShell, PanelCard, SegmentTabs, StatTile } from "@/components/shell";
 import { Button } from "@/components/ui/button";
@@ -18,7 +17,6 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { downloadCsv } from "@/lib/csv";
 import { fmtKgDisplay } from "@/lib/format-kilo";
-import { supabase } from "@/lib/supabase";
 import { useAppSettingsQuery } from "@/hooks/useAppSettingsQuery";
 import { useStatisticsReport } from "@/hooks/useStatistics";
 import {
@@ -28,32 +26,7 @@ import {
   type StatisticsFilters,
   type StatsGranularity,
 } from "@/services/statisticsService";
-import type { MovementType, OrderState } from "@/types/database";
 import { cn } from "@/lib/utils";
-
-const MOVEMENT_TYPES: MovementType[] = [
-  "ingreso",
-  "reserva",
-  "liberacion_reserva",
-  "egreso_entrega",
-  "ajuste_admin",
-  "correccion",
-  "descarte",
-  "produccion_directa_entrega",
-  "transferencia_salida",
-  "transferencia_entrada",
-  "vaciado_deposito",
-  "correccion_composicion",
-];
-
-const ORDER_STATES: OrderState[] = ["pendiente", "en_preparacion", "entregado", "cancelado"];
-
-function selectClass() {
-  return cn(
-    "flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm",
-    "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-  );
-}
 
 function MiniBars(props: { points: { label: string; value: number; value2?: number }[]; color: string; color2?: string }) {
   const max = Math.max(1, ...props.points.flatMap((p) => [p.value, p.value2 ?? 0]));
@@ -82,8 +55,7 @@ function MiniBars(props: { points: { label: string; value: number; value2?: numb
 }
 
 export function StatisticsPage() {
-  const { user, profile } = useAuth();
-  const isAdmin = profile?.role === "admin";
+  const { user } = useAuth();
 
   const defaultRange = useMemo(() => {
     const to = new Date();
@@ -93,58 +65,18 @@ export function StatisticsPage() {
 
   const [from, setFrom] = useState(defaultRange.from);
   const [to, setTo] = useState(defaultRange.to);
-  const [granularity, setGranularity] = useState<StatsGranularity>("day");
-  const [usuarioId, setUsuarioId] = useState("");
-  const [tipoMovimiento, setTipoMovimiento] = useState<MovementType | "">("");
-  const [depositoId, setDepositoId] = useState("");
-  const [tipoDepositoId, setTipoDepositoId] = useState("");
-  const [estadoPedido, setEstadoPedido] = useState<OrderState | "">("");
+  const [periodPreset, setPeriodPreset] = useState<"today" | "week" | "month" | "custom">("custom");
+  const granularity: StatsGranularity = "day";
 
   const filters: StatisticsFilters = useMemo(
     () => ({
       from,
       to,
-      usuarioId: usuarioId || undefined,
-      tipoMovimiento: tipoMovimiento || undefined,
-      depositoId: depositoId || undefined,
-      tipoDepositoId: tipoDepositoId || undefined,
-      estadoPedido: estadoPedido || undefined,
     }),
-    [from, to, usuarioId, tipoMovimiento, depositoId, tipoDepositoId, estadoPedido]
+    [from, to]
   );
 
   const report = useStatisticsReport(filters, granularity);
-
-  const depositsQ = useQuery({
-    queryKey: ["storage_locations", "stats-filters"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("storage_locations")
-        .select("id, nombre, tipo_id")
-        .eq("is_active", true)
-        .order("nombre");
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-
-  const typesQ = useQuery({
-    queryKey: ["storage_location_types", "stats-filters"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("storage_location_types").select("id, nombre").order("nombre");
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-
-  const profilesQ = useQuery({
-    queryKey: ["profiles", "stats-filters"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("profiles").select("id, username, display_name").order("username");
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
 
   const settingsQ = useAppSettingsQuery();
   const currency = settingsQ.data?.currency?.trim() || "USD";
@@ -157,6 +89,17 @@ export function StatisticsPage() {
       value2: p.dinero,
     }));
   }, [report.data?.series]);
+  const kilosWeekPoints = useMemo(() => {
+    return seriesPoints.slice(-7).map((p) => {
+      let label = p.label;
+      try {
+        label = format(parseISO(p.label), "EEE dd", { locale: undefined });
+      } catch {
+        label = p.label;
+      }
+      return { label, value: p.value };
+    });
+  }, [seriesPoints]);
 
   const exportSummary = async () => {
     if (!user?.id) return;
@@ -253,6 +196,24 @@ export function StatisticsPage() {
   };
 
   const kpis = report.data?.kpis;
+  const applyPreset = (preset: "today" | "week" | "month" | "custom") => {
+    setPeriodPreset(preset);
+    if (preset === "custom") return;
+    const now = new Date();
+    if (preset === "today") {
+      const d = format(now, "yyyy-MM-dd");
+      setFrom(d);
+      setTo(d);
+      return;
+    }
+    if (preset === "week") {
+      setFrom(format(startOfWeek(now, { weekStartsOn: 1 }), "yyyy-MM-dd"));
+      setTo(format(endOfWeek(now, { weekStartsOn: 1 }), "yyyy-MM-dd"));
+      return;
+    }
+    setFrom(format(startOfMonth(now), "yyyy-MM-dd"));
+    setTo(format(endOfMonth(now), "yyyy-MM-dd"));
+  };
 
   return (
     <PageShell>
@@ -282,88 +243,48 @@ export function StatisticsPage() {
       />
 
       <section className="rounded-2xl border border-border/70 bg-card/40 p-4 shadow-sm">
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
-          <div className="space-y-1.5">
-            <Label className="text-xs">Desde</Label>
-            <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-9" />
+        <div className="flex flex-wrap items-end justify-center gap-4">
+          <div className="min-w-[320px]">
+            <Label className="sr-only">Período rápido</Label>
+            <SegmentTabs
+              value={periodPreset}
+              onChange={(v) => applyPreset(v as "today" | "week" | "month" | "custom")}
+              options={[
+                { value: "today", label: "Hoy" },
+                { value: "week", label: "Esta semana" },
+                { value: "month", label: "Este mes" },
+                { value: "custom", label: "Rango" },
+              ]}
+            />
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Hasta</Label>
-            <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-9" />
+          <div className="flex items-center gap-2">
+            <Label className="text-xs whitespace-nowrap">Desde</Label>
+            <Input
+              type="date"
+              value={from}
+              onChange={(e) => {
+                setFrom(e.target.value);
+                setPeriodPreset("custom");
+              }}
+              className="h-9 w-[170px]"
+            />
           </div>
-          {isAdmin ? (
-            <div className="space-y-1.5">
-              <Label className="text-xs">Usuario</Label>
-              <select className={selectClass()} value={usuarioId} onChange={(e) => setUsuarioId(e.target.value)}>
-                <option value="">Todos</option>
-                {(profilesQ.data ?? []).map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.display_name ?? p.username}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : null}
-          <div className="space-y-1.5">
-            <Label className="text-xs">Tipo movimiento</Label>
-            <select className={selectClass()} value={tipoMovimiento} onChange={(e) => setTipoMovimiento(e.target.value as MovementType | "")}>
-              <option value="">Todos</option>
-              {MOVEMENT_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
+          <div className="flex items-center gap-2">
+            <Label className="text-xs whitespace-nowrap">Hasta</Label>
+            <Input
+              type="date"
+              value={to}
+              onChange={(e) => {
+                setTo(e.target.value);
+                setPeriodPreset("custom");
+              }}
+              className="h-9 w-[170px]"
+            />
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Depósito</Label>
-            <select className={selectClass()} value={depositoId} onChange={(e) => setDepositoId(e.target.value)}>
-              <option value="">Todos</option>
-              {(depositsQ.data ?? []).map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.nombre}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Tipo depósito</Label>
-            <select className={selectClass()} value={tipoDepositoId} onChange={(e) => setTipoDepositoId(e.target.value)}>
-              <option value="">Todos</option>
-              {(typesQ.data ?? []).map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.nombre}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Estado pedido</Label>
-            <select className={selectClass()} value={estadoPedido} onChange={(e) => setEstadoPedido(e.target.value as OrderState | "")}>
-              <option value="">Todos</option>
-              {ORDER_STATES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <span className="text-xs text-muted-foreground">Agregación temporal</span>
-          <SegmentTabs
-            value={granularity}
-            onChange={(v) => setGranularity(v as StatsGranularity)}
-            options={[
-              { value: "day", label: "Día" },
-              { value: "week", label: "Semana" },
-              { value: "month", label: "Mes" },
-            ]}
-          />
         </div>
       </section>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <StatTile
           icon={TrendingUp}
           label="Kilos vendidos (entregas)"
@@ -405,65 +326,23 @@ export function StatisticsPage() {
           tone="slate"
           dense
         />
-        <StatTile
-          icon={BarChart3}
-          label="Producción directa"
-          value={fmtKgDisplay(kpis?.produccionDirectaKg, report.isLoading)}
-          unit="kg"
-          tone="amber"
-          dense
-        />
-        <StatTile
-          icon={Package}
-          label="Stock ingresado"
-          value={fmtKgDisplay(kpis?.stockIngresadoKg, report.isLoading)}
-          unit="kg"
-          tone="emerald"
-          dense
-        />
-        <StatTile
-          icon={Truck}
-          label="Stock movido (transfer.)"
-          value={fmtKgDisplay(kpis?.stockMovidoKg, report.isLoading)}
-          unit="kg salida"
-          tone="slate"
-          dense
-        />
-        <StatTile
-          icon={ArrowDownRight}
-          label="Vaciado / ajuste / composición"
-          value={fmtKgDisplay(kpis?.stockVaciadoAjusteKg, report.isLoading)}
-          unit="kg"
-          tone="rose"
-          dense
-        />
-        <StatTile
-          icon={TrendingUp}
-          label="Falta preparar (actual)"
-          value={fmtKgDisplay(kpis?.faltaPrepararKg, report.isLoading)}
-          unit="kg global"
-          hint="No depende del filtro de fechas"
-          tone="rose"
-          emphasize
-          dense
-        />
       </section>
 
       <div className="grid gap-4 xl:grid-cols-2">
         <PanelCard
           icon={BarChart3}
           title="Serie temporal"
-          description="Barras: kg vendidos (primario) y dinero cobrado (secundario, escala relativa)."
+          description="Kilos vendidos a lo largo de la semana (últimos 7 días)."
           headerExtra={
             <span className="text-xs text-muted-foreground">
               {report.isError ? "Error al cargar" : null}
             </span>
           }
         >
-          {seriesPoints.length === 0 && !report.isLoading ? (
+          {kilosWeekPoints.length === 0 && !report.isLoading ? (
             <p className="text-sm text-muted-foreground">Sin entregas en el período.</p>
           ) : (
-            <MiniBars points={seriesPoints} color="bg-primary/80" color2="bg-foreground/35" />
+            <MiniBars points={kilosWeekPoints} color="bg-primary/80" />
           )}
         </PanelCard>
 

@@ -11,7 +11,7 @@ import {
   Search,
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PageHeader, PageShell, PanelCard, StatTile } from "@/components/shell";
@@ -71,6 +71,7 @@ export function OrdersPage() {
   const [deliverOrder, setDeliverOrder] = useState<OrderWithCreator | null>(null);
   const [cancelOrder, setCancelOrder] = useState<OrderWithCreator | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+  const [closedVisibleCount, setClosedVisibleCount] = useState(5);
 
   const coberturaMap = useMemo(() => {
     const m = new Map<string, boolean>();
@@ -104,6 +105,11 @@ export function OrdersPage() {
     const cls = filteredBase.filter((o) => CLOSED_ORDER_STATES.includes(o.estado));
     return sortClosedOrders(cls);
   }, [filteredBase]);
+  const closedVisible = closedOrders.slice(0, closedVisibleCount);
+
+  useEffect(() => {
+    setClosedVisibleCount(5);
+  }, [search, estadoFilter, soloNoAlcanza]);
 
   const showEmptyFilters = !ordersQ.isLoading && !ordersQ.error && filteredBase.length === 0;
 
@@ -368,7 +374,7 @@ export function OrdersPage() {
                 </div>
                 <div className="overflow-hidden rounded-lg border border-border/60">
                   <ul className="divide-y divide-border/50">
-                    {closedOrders.map((o) => (
+                    {closedVisible.map((o) => (
                       <li
                         key={o.id}
                         className="flex flex-wrap items-center gap-x-3 gap-y-1.5 bg-muted/5 px-3 py-2 text-xs transition-colors hover:bg-muted/15"
@@ -412,6 +418,18 @@ export function OrdersPage() {
                     ))}
                   </ul>
                 </div>
+                {closedOrders.length > closedVisible.length ? (
+                  <div className="mt-3 flex justify-center">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setClosedVisibleCount((n) => n + 10)}
+                    >
+                      Mostrar más
+                    </Button>
+                  </div>
+                ) : null}
               </section>
             ) : null}
           </div>
