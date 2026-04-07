@@ -1,5 +1,5 @@
-import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
+import { formatIsoSafe } from "@/lib/format-date";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -58,7 +58,7 @@ export function OrderDetailDialog(props: Props) {
     if (!o || !props.open) return;
     setCliente(o.cliente_nombre);
     setKg(String(Number(o.cantidad_meta_kilos)));
-    setFp(o.fecha_pedido.slice(0, 10));
+    setFp((o.fecha_pedido ?? "").slice(0, 10));
     setFe(o.fecha_encargo ? o.fecha_encargo.slice(0, 10) : "");
     setNotas(o.notas ?? "");
     setPrioridad(String(normalizaPrioridad(o.prioridad)));
@@ -113,11 +113,11 @@ export function OrderDetailDialog(props: Props) {
                 {o.estado.replace(/_/g, " ")}
               </span>
               <span className="text-muted-foreground">
-                Pedido {format(parseISO(o.fecha_pedido), "dd/MM/yyyy", { locale: es })}
+                Pedido {formatIsoSafe(o.fecha_pedido, "dd/MM/yyyy", { locale: es })}
               </span>
               {o.fecha_encargo ? (
                 <span className="text-muted-foreground">
-                  · encargo {format(parseISO(o.fecha_encargo), "dd/MM/yyyy", { locale: es })}
+                  · encargo {formatIsoSafe(o.fecha_encargo, "dd/MM/yyyy", { locale: es })}
                 </span>
               ) : null}
             </div>
@@ -242,7 +242,7 @@ export function OrderDetailDialog(props: Props) {
                   {q.data.deliveries.map((d) => (
                     <li key={d.id} className="rounded-md border border-border/60 bg-muted/15 p-3">
                       <p className="text-xs text-muted-foreground">
-                        {format(parseISO(d.entregado_at), "dd/MM/yyyy HH:mm", { locale: es })} · $
+                        {formatIsoSafe(d.entregado_at, "dd/MM/yyyy HH:mm", { locale: es })} · $
                         {Number(d.dinero_recibido).toLocaleString("es-AR")} · {d.recibio_dinero_nombre}
                       </p>
                       <p className="text-[10px] text-muted-foreground">
@@ -267,7 +267,7 @@ export function OrderDetailDialog(props: Props) {
               <ul className="max-h-48 space-y-1 overflow-auto text-xs text-muted-foreground">
                 {q.data.audit.map((a) => (
                   <li key={a.id}>
-                    {format(parseISO(a.created_at), "dd/MM/yy HH:mm", { locale: es })} — {a.accion}
+                    {formatIsoSafe(a.created_at, "dd/MM/yy HH:mm", { locale: es })} — {a.accion}
                   </li>
                 ))}
               </ul>

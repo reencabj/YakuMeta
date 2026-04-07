@@ -1,4 +1,4 @@
-import { format, isToday, parseISO } from "date-fns";
+import { isToday } from "date-fns";
 import { es } from "date-fns/locale";
 import {
   AlertTriangle,
@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PageHeader, PageShell, PanelCard, StatTile } from "@/components/shell";
 import { fmtKgDisplay } from "@/lib/format-kilo";
+import { formatIsoSafe, parseIsoSafe } from "@/lib/format-date";
 import { cn } from "@/lib/utils";
 import { BOLSAS_PER_KG_META } from "@/lib/meta-bags";
 import { usePedidosKpiQuery } from "@/hooks/useGlobalStockSummary";
@@ -115,7 +116,11 @@ export function OrdersPage() {
 
   const entregasHoyFallback = useMemo(() => {
     const list = ordersQ.data ?? [];
-    return list.filter((o) => o.estado === "entregado" && isToday(parseISO(o.updated_at))).length;
+    return list.filter((o) => {
+      if (o.estado !== "entregado") return false;
+      const d = parseIsoSafe(o.updated_at);
+      return d != null && isToday(d);
+    }).length;
   }, [ordersQ.data]);
 
   const moneyFmt = useMemo(
@@ -311,9 +316,9 @@ export function OrdersPage() {
                           </span>
                         </div>
                         <p className="text-[10px] text-muted-foreground">
-                          {format(parseISO(o.fecha_pedido), "dd/MM/yy", { locale: es })}
+                          {formatIsoSafe(o.fecha_pedido, "dd/MM/yy", { locale: es })}
                           {o.fecha_encargo
-                            ? ` · enc. ${format(parseISO(o.fecha_encargo), "dd/MM/yy", { locale: es })}`
+                            ? ` · enc. ${formatIsoSafe(o.fecha_encargo, "dd/MM/yy", { locale: es })}`
                             : ""}
                         </p>
                         <div className="mt-1 flex flex-wrap gap-1.5">
@@ -400,10 +405,10 @@ export function OrdersPage() {
                           {Math.round(Number(o.cantidad_meta_kilos) * BOLSAS_PER_KG_META)} bol.
                         </span>
                         <span className="shrink-0 text-[10px] text-muted-foreground">
-                          Ped. {format(parseISO(o.fecha_pedido), "dd/MM/yy", { locale: es })}
+                          Ped. {formatIsoSafe(o.fecha_pedido, "dd/MM/yy", { locale: es })}
                         </span>
                         <span className="shrink-0 text-[10px] text-muted-foreground/90" title="Última actualización en sistema">
-                          Act. {format(parseISO(o.updated_at), "dd/MM/yy HH:mm", { locale: es })}
+                          Act. {formatIsoSafe(o.updated_at, "dd/MM/yy HH:mm", { locale: es })}
                         </span>
                         <Button
                           type="button"

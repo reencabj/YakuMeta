@@ -1,6 +1,7 @@
 import { Star } from "lucide-react";
 import type { OrderState } from "@/types/database";
 import type { OrderWithCreator } from "@/services/orderService";
+import { parseIsoSafe } from "@/lib/format-date";
 
 /** Pedidos que cuentan como “en curso” para la cola operativa */
 export const ACTIVE_ORDER_STATES: OrderState[] = ["pendiente", "en_preparacion"];
@@ -27,13 +28,19 @@ export function sortActiveOrders(list: OrderWithCreator[]): OrderWithCreator[] {
     const ap = prioritySortRank(a.prioridad);
     const bp = prioritySortRank(b.prioridad);
     if (ap !== bp) return ap - bp;
-    return new Date(a.fecha_pedido).getTime() - new Date(b.fecha_pedido).getTime();
+    const ta = parseIsoSafe(a.fecha_pedido)?.getTime() ?? 0;
+    const tb = parseIsoSafe(b.fecha_pedido)?.getTime() ?? 0;
+    return ta - tb;
   });
 }
 
 /** Entregados y cancelados: más recientes por última actualización primero (proxy de cierre). */
 export function sortClosedOrders(list: OrderWithCreator[]): OrderWithCreator[] {
-  return [...list].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+  return [...list].sort((a, b) => {
+    const ta = parseIsoSafe(a.updated_at)?.getTime() ?? 0;
+    const tb = parseIsoSafe(b.updated_at)?.getTime() ?? 0;
+    return tb - ta;
+  });
 }
 
 export function OrderPriorityStars({ prioridad }: { prioridad: number | null | undefined }) {
