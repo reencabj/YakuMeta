@@ -23,9 +23,9 @@ import { usePedidosKpiQuery } from "@/hooks/useGlobalStockSummary";
 import {
   useCancelOrderMutation,
   useDeliveriesTodayCount,
+  useLatestDeliveriesByOrderIds,
   useOpenOrdersCoberturaQuery,
   useOrdersQuery,
-  useUpdateOrderMutation,
 } from "@/hooks/useOrders";
 import type { OrderState } from "@/types/database";
 import type { OrderWithCreator } from "@/services/orderService";
@@ -61,7 +61,6 @@ export function OrdersPage() {
   const coberturaQ = useOpenOrdersCoberturaQuery();
   const todayQ = useDeliveriesTodayCount();
   const cancelMut = useCancelOrderMutation();
-  const updateMut = useUpdateOrderMutation();
 
   const [search, setSearch] = useState("");
   const [estadoFilter, setEstadoFilter] = useState<OrderState | "all">("all");
@@ -107,6 +106,8 @@ export function OrdersPage() {
     return sortClosedOrders(cls);
   }, [filteredBase]);
   const closedVisible = closedOrders.slice(0, closedVisibleCount);
+  const closedVisibleIds = useMemo(() => closedVisible.map((o) => o.id), [closedVisible]);
+  const latestClosedDeliveryQ = useLatestDeliveriesByOrderIds(closedVisibleIds);
 
   useEffect(() => {
     setClosedVisibleCount(5);
@@ -261,8 +262,7 @@ export function OrdersPage() {
                     const alcanza = coberturaMap.get(o.id);
                     const showCobertura = alcanza !== undefined;
                     const pri = normalizaPrioridad(o.prioridad);
-                    const isPreparing = o.estado === "en_preparacion";
-                    const isPending = o.estado === "pendiente";
+                    const creadoPorNombre = o.creado_por?.display_name ?? o.creado_por?.username ?? "—";
                     return (
                       <div
                         key={o.id}
@@ -282,9 +282,10 @@ export function OrdersPage() {
                         )}
                       >
                         <div className="flex items-start justify-between gap-2">
-                          <span className="min-w-0 flex-1 truncate font-semibold leading-tight text-foreground">
-                            {o.cliente_nombre}
-                          </span>
+                          <div className="min-w-0 flex-1">
+                            <span className="block truncate font-semibold leading-tight text-foreground">{o.cliente_nombre}</span>
+                            <span className="block truncate text-[10px] text-muted-foreground">Creado por: {creadoPorNombre}</span>
+                          </div>
                           <span className="flex shrink-0 items-center gap-1">
                             <OrderPriorityStars prioridad={o.prioridad} />
                           </span>
@@ -322,24 +323,6 @@ export function OrdersPage() {
                             : ""}
                         </p>
                         <div className="mt-1 flex flex-wrap gap-1.5">
-                          {isPending || isPreparing ? (
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant={isPreparing ? "secondary" : "outline"}
-                              className="h-7 px-2 text-[11px]"
-                              disabled={updateMut.isPending}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                void updateMut.mutateAsync({
-                                  id: o.id,
-                                  patch: { estado: isPreparing ? "pendiente" : "en_preparacion" },
-                                });
-                              }}
-                            >
-                              {isPreparing ? "Pasar a pendiente" : "Pasar a preparación"}
-                            </Button>
-                          ) : null}
                           <Button
                             type="button"
                             size="sm"
@@ -384,6 +367,13 @@ export function OrdersPage() {
                         key={o.id}
                         className="flex flex-wrap items-center gap-x-3 gap-y-1.5 bg-muted/5 px-3 py-2 text-xs transition-colors hover:bg-muted/15"
                       >
+                        {(() => {
+                          const creadoPor = o.creado_por?.display_name ?? o.creado_por?.username ?? "—";
+                          const delivery = latestClosedDeliveryQ.data?.[o.id];
+                          const entregadoPor = delivery?.entregado_por_nombre ?? (latestClosedDeliveryQ.isLoading ? "…" : "—");
+                          const recibioDinero = delivery?.recibio_dinero_nombre ?? (latestClosedDeliveryQ.isLoading ? "…" : "—");
+                          return (
+                            <>
                         <button
                           type="button"
                           onClick={() => setDetailId(o.id)}
@@ -410,6 +400,9 @@ export function OrdersPage() {
                         <span className="shrink-0 text-[10px] text-muted-foreground/90" title="Última actualización en sistema">
                           Act. {formatIsoSafe(o.updated_at, "dd/MM/yy HH:mm", { locale: es })}
                         </span>
+                        <span className="shrink-0 text-[10px] text-muted-foreground">Creado por: {creadoPor}</span>
+                        <span className="shrink-0 text-[10px] text-muted-foreground">Entregado por: {entregadoPor}</span>
+                        <span className="shrink-0 text-[10px] text-muted-foreground">Recibió: {recibioDinero}</span>
                         <Button
                           type="button"
                           variant="ghost"
@@ -419,6 +412,9 @@ export function OrdersPage() {
                         >
                           Detalle
                         </Button>
+                            </>
+                          );
+                        })()}
                       </li>
                     ))}
                   </ul>

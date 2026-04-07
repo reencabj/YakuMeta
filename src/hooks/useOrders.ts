@@ -4,6 +4,7 @@ import {
   cancelOrder,
   createOrder,
   deliverOrder,
+  fetchLatestDeliveriesByOrderIds,
   fetchOpenOrdersCobertura,
   fetchOrderDetail,
   fetchOrdersWithCreator,
@@ -57,6 +58,14 @@ export function useDeliveriesTodayCount() {
       if (error) throw error;
       return count ?? 0;
     },
+  });
+}
+
+export function useLatestDeliveriesByOrderIds(orderIds: string[]) {
+  return useQuery({
+    queryKey: ["latest-order-deliveries", ...orderIds],
+    queryFn: () => fetchLatestDeliveriesByOrderIds(orderIds),
+    enabled: orderIds.length > 0,
   });
 }
 

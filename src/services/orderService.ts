@@ -43,6 +43,12 @@ export type OpenOrderCoberturaRow = {
   alcanza_fifo: boolean;
 };
 
+export type LatestDeliverySummary = {
+  order_id: string;
+  recibio_dinero_nombre: string;
+  entregado_por_nombre: string;
+};
+
 const orderSelect = `
   *,
   creado_por:profiles!orders_creado_por_usuario_id_fkey (
@@ -62,6 +68,39 @@ export async function fetchOpenOrdersCobertura(): Promise<OpenOrderCoberturaRow[
   const { data, error } = await supabase.from("v_open_orders_cobertura").select("order_id, cum_kg, alcanza_fifo");
   if (error) throw error;
   return (data ?? []) as OpenOrderCoberturaRow[];
+}
+
+export async function fetchLatestDeliveriesByOrderIds(orderIds: string[]): Promise<Record<string, LatestDeliverySummary>> {
+  if (orderIds.length === 0) return {};
+  const { data, error } = await supabase
+    .from("order_deliveries")
+    .select(
+      `
+      order_id,
+      recibio_dinero_nombre,
+      entregado_at,
+      entregado_por:profiles!order_deliveries_created_by_fkey ( username, display_name )
+    `
+    )
+    .in("order_id", orderIds)
+    .order("entregado_at", { ascending: false });
+  if (error) throw error;
+
+  const byOrder: Record<string, LatestDeliverySummary> = {};
+  for (const row of data ?? []) {
+    const orderId = row.order_id as string;
+    if (byOrder[orderId]) continue;
+    const entregadoPor =
+      ((row as { entregado_por?: { display_name?: string | null; username?: string | null } | null }).entregado_por?.display_name ??
+        (row as { entregado_por?: { display_name?: string | null; username?: string | null } | null }).entregado_por?.username ??
+        "—") as string;
+    byOrder[orderId] = {
+      order_id: orderId,
+      recibio_dinero_nombre: (row.recibio_dinero_nombre as string) ?? "—",
+      entregado_por_nombre: entregadoPor,
+    };
+  }
+  return byOrder;
 }
 
 export async function fetchOrderDetail(orderId: string): Promise<OrderDetail> {
