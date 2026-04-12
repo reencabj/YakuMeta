@@ -81,13 +81,15 @@ export function StorageGroupDetailDialog(props: Props) {
       <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{g?.nombre ?? "Grupo"}</DialogTitle>
-          <DialogDescription>
-            {g?.descripcion?.trim() || "Sin descripción."}{" "}
-            {g ? (
-              <Badge variant={g.activo ? "success" : "warning"} className="ml-2 align-middle">
-                {g.activo ? "Activo" : "Inactivo"}
-              </Badge>
-            ) : null}
+          <DialogDescription asChild>
+            <div className="flex flex-wrap items-center gap-2">
+              <span>{g?.descripcion?.trim() || "Sin descripción."}</span>
+              {g ? (
+                <Badge variant={g.activo ? "success" : "warning"} className="align-middle">
+                  {g.activo ? "Activo" : "Inactivo"}
+                </Badge>
+              ) : null}
+            </div>
           </DialogDescription>
         </DialogHeader>
 

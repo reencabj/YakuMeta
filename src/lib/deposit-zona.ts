@@ -38,7 +38,10 @@ export type ZonaGroup = {
   label: string;
   deposits: DepositRowModel[];
   count: number;
+  /** Suma de stock (kg meta) en la zona. */
   totalKg: number;
+  /** Suma de capacidad en kg meta de los depósitos de la zona. */
+  totalCapMetaKg: number;
 };
 
 /**
@@ -64,12 +67,14 @@ export function groupDepositsByZona(deposits: DepositRowModel[], depositSort: De
       label = getZonaLabelFromNombre(sorted[0]?.nombre ?? "");
     }
     const totalKg = sorted.reduce((s, d) => s + d.total_meta_kg, 0);
+    const totalCapMetaKg = sorted.reduce((s, d) => s + Number(d.capacidad_meta_kilos ?? 0), 0);
     groups.push({
       key,
       label,
       deposits: sorted,
       count: sorted.length,
       totalKg,
+      totalCapMetaKg,
     });
   }
 

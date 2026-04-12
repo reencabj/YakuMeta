@@ -192,6 +192,7 @@ export interface Database {
           id: string;
           cliente_nombre: string;
           cantidad_meta_kilos: number;
+          kilos_entregados_acumulado: number;
           fecha_pedido: string;
           fecha_encargo: string | null;
           creado_por_usuario_id: string;
@@ -201,6 +202,9 @@ export interface Database {
           is_active: boolean;
           precio_sugerido_por_kilo: number | null;
           total_sugerido: number | null;
+          cobrado_pre_entrega_at: string | null;
+          cobrado_recibio_dinero_usuario_id: string | null;
+          cobrado_monto: number | null;
           created_at: string;
           updated_at: string;
           updated_by: string | null;
@@ -208,6 +212,7 @@ export interface Database {
         Insert: {
           cliente_nombre: string;
           cantidad_meta_kilos: number;
+          kilos_entregados_acumulado?: number;
           fecha_pedido?: string;
           fecha_encargo?: string | null;
           creado_por_usuario_id: string;
@@ -217,6 +222,9 @@ export interface Database {
           is_active?: boolean;
           precio_sugerido_por_kilo?: number | null;
           total_sugerido?: number | null;
+          cobrado_pre_entrega_at?: string | null;
+          cobrado_recibio_dinero_usuario_id?: string | null;
+          cobrado_monto?: number | null;
         };
         Update: Partial<Database["public"]["Tables"]["orders"]["Insert"]>;
       };
@@ -540,6 +548,21 @@ export interface Database {
         Args: {
           p_order_id: string;
           p_reason: string | null;
+        };
+        Returns: null;
+      };
+      set_order_kilos_entregados_acumulado: {
+        Args: {
+          p_order_id: string;
+          p_kilos: number;
+        };
+        Returns: null;
+      };
+      mark_order_cobrado_pre_entrega: {
+        Args: {
+          p_order_id: string;
+          p_recibio_dinero_usuario_id: string;
+          p_monto: number;
         };
         Returns: null;
       };

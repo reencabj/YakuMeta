@@ -154,11 +154,33 @@ export async function createOrder(input: {
   return data as string;
 }
 
+export async function markOrderCobradoPreEntrega(
+  orderId: string,
+  input: { recibio_dinero_usuario_id: string; amount_received: number }
+): Promise<void> {
+  const { error } = await supabase.rpc("mark_order_cobrado_pre_entrega", {
+    p_order_id: orderId,
+    p_recibio_dinero_usuario_id: input.recibio_dinero_usuario_id,
+    p_monto: input.amount_received,
+  });
+  if (error) throw error;
+}
+
+/** Solo seguimiento operativo; no altera precios (usa RPC en BD). */
+export async function setOrderKilosEntregadosAcumulado(orderId: string, kilos: number): Promise<void> {
+  const { error } = await supabase.rpc("set_order_kilos_entregados_acumulado", {
+    p_order_id: orderId,
+    p_kilos: kilos,
+  });
+  if (error) throw error;
+}
+
 export async function updateOrderPatch(
   orderId: string,
   patch: Partial<{
     cliente_nombre: string;
     cantidad_meta_kilos: number;
+    kilos_entregados_acumulado: number;
     notas: string | null;
     fecha_pedido: string;
     fecha_encargo: string | null;

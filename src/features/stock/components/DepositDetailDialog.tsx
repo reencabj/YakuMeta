@@ -1,13 +1,4 @@
-import { format, parseISO } from "date-fns";
-import { es } from "date-fns/locale";
-import {
-  ArrowLeftRight,
-  Package,
-  Pencil,
-  PlusCircle,
-  SlidersHorizontal,
-  Warehouse,
-} from "lucide-react";
+import { Pencil, PlusCircle, Warehouse } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,26 +9,20 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { DepositRowModel } from "@/hooks/useDeposits";
-import { batchBagsFromMetadataOrKg } from "@/lib/meta-bags";
 import { depositFaltanteBolsas } from "@/lib/meta-bags";
 import { cn } from "@/lib/utils";
-import type { BatchWithRelations } from "@/services/stockBatchesService";
 import { depositTypeIcon } from "./deposit-type-icon";
 
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   deposit: DepositRowModel | null;
-  batches: BatchWithRelations[];
   isAdmin: boolean;
   onRegisterIntake: () => void;
   onEditDeposit: () => void;
   onEmptyDeposit: () => void;
   /** Cierra el detalle y abre el flujo de desactivación (solo admin). */
   onDeactivateDeposit?: () => void;
-  onTransferBatch: (b: BatchWithRelations) => void;
-  onAdjustBatch: (b: BatchWithRelations) => void;
-  onEditComposition: (b: BatchWithRelations) => void;
 };
 
 function fmt(n: number) {
@@ -47,9 +32,6 @@ function fmt(n: number) {
 export function DepositDetailDialog(props: Props) {
   const d = props.deposit;
   const Icon = d ? depositTypeIcon(d.tipo.slug) : Warehouse;
-  const depositBatches = d
-    ? props.batches.filter((b) => b.deposito_id === d.id).sort((a, b) => b.fecha_guardado.localeCompare(a.fecha_guardado))
-    : [];
   const bag = d ? depositFaltanteBolsas(Number(d.capacidad_meta_kilos), d.total_meta_kg) : null;
 
   return (
@@ -62,17 +44,19 @@ export function DepositDetailDialog(props: Props) {
             </div>
             <div className="min-w-0 flex-1">
               <DialogTitle className="text-xl leading-tight">{d?.nombre ?? "Depósito"}</DialogTitle>
-              <DialogDescription className="text-sm text-muted-foreground">
-                {d?.tipo.nombre}
-                {d?.is_active ? (
-                  <Badge variant="success" className="ml-2 align-middle">
-                    Activo
-                  </Badge>
-                ) : (
-                  <Badge variant="secondary" className="ml-2 align-middle">
-                    Inactivo
-                  </Badge>
-                )}
+              <DialogDescription asChild>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span>{d?.tipo.nombre}</span>
+                  {d?.is_active ? (
+                    <Badge variant="success" className="align-middle">
+                      Activo
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary" className="align-middle">
+                      Inactivo
+                    </Badge>
+                  )}
+                </div>
               </DialogDescription>
             </div>
           </div>
@@ -102,78 +86,6 @@ export function DepositDetailDialog(props: Props) {
             </div>
           ) : null}
         </DialogHeader>
-
-        <div className="space-y-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Lotes</p>
-          {depositBatches.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-border/80 py-8 text-center text-sm text-muted-foreground">
-              Sin lotes
-            </p>
-          ) : (
-            <ul className="space-y-2">
-              {depositBatches.map((b) => {
-                const bags = batchBagsFromMetadataOrKg(b.metadata, Number(b.cantidad_meta_kilos));
-                const guardado = format(parseISO(b.fecha_guardado), "dd/MM/yy", { locale: es });
-                const canMove = Number(b.cantidad_disponible_meta_kilos) > 0 && b.deposito.is_active;
-                return (
-                  <li
-                    key={b.id}
-                    className="flex flex-col gap-2 rounded-lg border border-border/70 bg-muted/20 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <div className="min-w-0 space-y-0.5">
-                      <p className="font-mono text-sm tabular-nums">
-                        {fmt(Number(b.cantidad_meta_kilos))} kg
-                        <span className="ml-2 text-xs text-muted-foreground">
-                          {bags.fuente === "metadata"
-                            ? `${bags.totalBolsas} bol. · ${bags.packsDe3}p+${bags.bolsasIndividuales}i`
-                            : `${bags.totalBolsas} bol. est.`}
-                        </span>
-                      </p>
-                      <p className="text-[10px] text-muted-foreground">
-                        {guardado} · {b.estado}
-                      </p>
-                    </div>
-                    {props.isAdmin ? (
-                      <div className="flex shrink-0 gap-1">
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8"
-                          title="Mover"
-                          disabled={!canMove}
-                          onClick={() => props.onTransferBatch(b)}
-                        >
-                          <ArrowLeftRight className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8"
-                          title="Ajustar"
-                          onClick={() => props.onAdjustBatch(b)}
-                        >
-                          <SlidersHorizontal className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8"
-                          title="Composición"
-                          onClick={() => props.onEditComposition(b)}
-                        >
-                          <Package className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
 
         <div
           className={cn(

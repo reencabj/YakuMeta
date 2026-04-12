@@ -29,6 +29,7 @@ import {
 } from "@/hooks/useOrders";
 import type { OrderState } from "@/types/database";
 import type { OrderWithCreator } from "@/services/orderService";
+import { CobrarOrderDialog } from "./CobrarOrderDialog";
 import { DeliverOrderDialog } from "./DeliverOrderDialog";
 import { NewOrderDialog } from "./NewOrderDialog";
 import { OrderDetailDialog } from "./OrderDetailDialog";
@@ -41,6 +42,7 @@ import {
   sortActiveOrders,
   sortClosedOrders,
 } from "./orderUtils";
+import { PartialDeliveryKgControl } from "./PartialDeliveryKgControl";
 import {
   Dialog,
   DialogContent,
@@ -69,7 +71,9 @@ export function OrdersPage() {
   const [newOpen, setNewOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [deliverOrder, setDeliverOrder] = useState<OrderWithCreator | null>(null);
+  const [cobrarOrder, setCobrarOrder] = useState<OrderWithCreator | null>(null);
   const [cancelOrder, setCancelOrder] = useState<OrderWithCreator | null>(null);
+  const [cancelConfirmOrder, setCancelConfirmOrder] = useState<OrderWithCreator | null>(null);
   const [cancelReason, setCancelReason] = useState("");
   const [closedVisibleCount, setClosedVisibleCount] = useState(5);
 
@@ -129,10 +133,13 @@ export function OrdersPage() {
       new Intl.NumberFormat("es-AR", {
         style: "currency",
         currency: "ARS",
-        maximumFractionDigits: 2,
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
       }),
     []
   );
+  /** ARS sin espacio entre símbolo y monto (p. ej. `$180.000`). */
+  const formatPrecioArs = (n: number) => moneyFmt.format(n).replace(/\$\s+/u, () => "$");
   const faltaNum = Number(pedidosKpi.data?.faltante_preparar_kg ?? 0);
   const faltaPositiva = Number.isFinite(faltaNum) ? Math.max(0, faltaNum) : 0;
   const tiradasNecesarias = Math.ceil((faltaPositiva * BOLSAS_PER_KG_META) / BOLSAS_POR_TIRADA);
@@ -250,7 +257,9 @@ export function OrdersPage() {
             <section>
               <div className="mb-3">
                 <h3 className="text-sm font-semibold text-foreground">Pedidos activos</h3>
-                <p className="text-xs text-muted-foreground">Pendientes y en preparación, ordenados por prioridad y antigüedad.</p>
+                <p className="text-xs text-muted-foreground">
+                  Pendientes y en preparación, ordenados por prioridad y fecha de entrega pactada (más próxima primero).
+                </p>
               </div>
               {activeOrders.length === 0 ? (
                 <p className="rounded-lg border border-dashed border-border/60 bg-muted/10 px-3 py-6 text-center text-xs text-muted-foreground">
@@ -282,13 +291,26 @@ export function OrdersPage() {
                         )}
                       >
                         <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <span className="block truncate font-semibold leading-tight text-foreground">{o.cliente_nombre}</span>
-                            <span className="block truncate text-[10px] text-muted-foreground">Creado por: {creadoPorNombre}</span>
+                          <div className="min-w-0 flex-1 pr-1">
+                            <div className="flex items-start gap-1.5">
+                              <span className="block min-w-0 truncate text-lg font-semibold leading-tight text-foreground">
+                                {o.cliente_nombre}
+                              </span>
+                              <OrderPriorityStars prioridad={o.prioridad} />
+                            </div>
+                            <span className="mt-0.5 block truncate text-[10px] text-muted-foreground">
+                              Creado por: {creadoPorNombre}
+                            </span>
                           </div>
-                          <span className="flex shrink-0 items-center gap-1">
-                            <OrderPriorityStars prioridad={o.prioridad} />
-                          </span>
+                          <div className="flex shrink-0 flex-col items-end text-right">
+                            <span className="text-3xl font-bold tabular-nums leading-none tracking-tight text-foreground sm:text-4xl">
+                              {Number(o.cantidad_meta_kilos).toLocaleString("es-AR", {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}{" "}
+                              kg
+                            </span>
+                          </div>
                         </div>
                         <div className="flex flex-wrap items-center gap-1.5">
                           <span
@@ -305,47 +327,95 @@ export function OrdersPage() {
                             </span>
                           ) : null}
                         </div>
-                        <div className="text-xs tabular-nums text-muted-foreground">
-                          <span className="font-mono text-foreground">{Number(o.cantidad_meta_kilos).toFixed(2)} kg</span>
-                          <span> · </span>
-                          <span>{Math.round(Number(o.cantidad_meta_kilos) * BOLSAS_PER_KG_META)} bol.</span>
+                        <PartialDeliveryKgControl order={o} />
+                        <div className="rounded-lg border border-border/45 bg-muted/10 px-2.5 py-1.5">
+                          <div className="flex w-full flex-wrap items-baseline justify-center gap-x-1.5 gap-y-0.5 text-center text-[10px] leading-snug">
+                            <span className="text-muted-foreground">Fecha de creación</span>
+                            <span className="font-medium tabular-nums text-foreground">
+                              {formatIsoSafe(o.fecha_pedido, "dd/MM/yy", { locale: es })}
+                            </span>
+                            {o.fecha_encargo ? (
+                              <>
+                                <span className="text-border/60" aria-hidden>
+                                  ·
+                                </span>
+                                <span className="text-muted-foreground">Fecha de entrega pactada</span>
+                                <span className="font-medium tabular-nums text-foreground">
+                                  {formatIsoSafe(o.fecha_encargo, "dd/MM/yy", { locale: es })}
+                                </span>
+                              </>
+                            ) : null}
+                          </div>
                         </div>
-                        <div className="text-xs tabular-nums">
-                          <span className="text-muted-foreground">Cobrar: </span>
-                          <span className="font-semibold text-foreground">
-                            {o.total_sugerido != null ? moneyFmt.format(Number(o.total_sugerido)) : "—"}
-                          </span>
-                        </div>
-                        <p className="text-[10px] text-muted-foreground">
-                          {formatIsoSafe(o.fecha_pedido, "dd/MM/yy", { locale: es })}
-                          {o.fecha_encargo
-                            ? ` · enc. ${formatIsoSafe(o.fecha_encargo, "dd/MM/yy", { locale: es })}`
-                            : ""}
-                        </p>
-                        <div className="mt-1 flex flex-wrap gap-1.5">
-                          <Button
-                            type="button"
-                            size="sm"
-                            className="h-7 px-2 text-[11px]"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDeliverOrder(o);
-                            }}
-                          >
-                            Entregar
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 px-2 text-[11px]"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDetailId(o.id);
-                            }}
-                          >
-                            Detalle
-                          </Button>
+                        <div className="flex min-w-0 flex-nowrap items-center justify-between gap-2 border-t border-border/45 pt-2.5">
+                          <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-x-1.5 overflow-x-auto pr-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:gap-x-2 [&::-webkit-scrollbar]:hidden">
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="h-8 shrink-0 px-2 text-xs font-medium"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeliverOrder(o);
+                              }}
+                            >
+                              Entregar
+                            </Button>
+                            {o.cobrado_pre_entrega_at ? (
+                              <Button
+                                type="button"
+                                size="sm"
+                                disabled
+                                className={cn(
+                                  "h-8 shrink-0 border-0 px-2 text-xs font-medium shadow-sm !bg-emerald-600 !text-white hover:!bg-emerald-600",
+                                  "disabled:cursor-default disabled:opacity-100"
+                                )}
+                              >
+                                Cobrado
+                              </Button>
+                            ) : (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-8 shrink-0 px-2 text-xs font-medium"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setCobrarOrder(o);
+                                }}
+                              >
+                                Cobrar
+                              </Button>
+                            )}
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 shrink-0 px-2 text-xs font-medium"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDetailId(o.id);
+                              }}
+                            >
+                              Detalle
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 shrink-0 px-2 text-xs font-medium text-red-500 hover:bg-red-500/10 hover:text-red-400"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCancelConfirmOrder(o);
+                              }}
+                            >
+                              Cancelar
+                            </Button>
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <p className="m-0 text-[1.0625rem] font-bold tabular-nums leading-none tracking-tight text-foreground sm:text-[1.125rem]">
+                              {o.total_sugerido != null ? formatPrecioArs(Number(o.total_sugerido)) : "—"}
+                            </p>
+                          </div>
                         </div>
                       </div>
                     );
@@ -449,6 +519,39 @@ export function OrdersPage() {
         }}
       />
       <DeliverOrderDialog open={Boolean(deliverOrder)} onOpenChange={(x) => !x && setDeliverOrder(null)} order={deliverOrder} />
+      <CobrarOrderDialog open={Boolean(cobrarOrder)} onOpenChange={(x) => !x && setCobrarOrder(null)} order={cobrarOrder} />
+
+      <Dialog open={Boolean(cancelConfirmOrder)} onOpenChange={(x) => !x && setCancelConfirmOrder(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>¿Cancelar pedido?</DialogTitle>
+            <DialogDescription>
+              {cancelConfirmOrder
+                ? `Se cancelará el pedido «${cancelConfirmOrder.cliente_nombre}». Esta acción no se puede deshacer.`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setCancelConfirmOrder(null)}>
+              Volver
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => {
+                const ord = cancelConfirmOrder;
+                setCancelConfirmOrder(null);
+                if (ord) {
+                  setCancelReason("");
+                  setCancelOrder(ord);
+                }
+              }}
+            >
+              Sí, continuar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={Boolean(cancelOrder)} onOpenChange={(x) => !x && setCancelOrder(null)}>
         <DialogContent>

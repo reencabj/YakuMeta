@@ -8,6 +8,8 @@ import {
   fetchOpenOrdersCobertura,
   fetchOrderDetail,
   fetchOrdersWithCreator,
+  markOrderCobradoPreEntrega,
+  setOrderKilosEntregadosAcumulado,
   updateOrderPatch,
   type DeliverPayload,
 } from "@/services/orderService";
@@ -96,6 +98,38 @@ export function useUpdateOrderMutation() {
       void qc.invalidateQueries({ queryKey: ORDERS_KEY });
       void qc.invalidateQueries({ queryKey: ORDER_DETAIL(v.id) });
       invalidatePedidosRelated(qc);
+    },
+  });
+}
+
+export function useMarkOrderCobradoPreEntregaMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      orderId,
+      recibio_dinero_usuario_id,
+      amount_received,
+    }: {
+      orderId: string;
+      recibio_dinero_usuario_id: string;
+      amount_received: number;
+    }) => markOrderCobradoPreEntrega(orderId, { recibio_dinero_usuario_id, amount_received }),
+    onSuccess: (_, v) => {
+      void qc.invalidateQueries({ queryKey: ORDERS_KEY });
+      void qc.invalidateQueries({ queryKey: ORDER_DETAIL(v.orderId) });
+    },
+  });
+}
+
+/** Entregas parciales (kg): no toca total_sugerido ni precio. */
+export function useSetOrderKilosEntregadosAcumuladoMutation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orderId, kilos }: { orderId: string; kilos: number }) =>
+      setOrderKilosEntregadosAcumulado(orderId, kilos),
+    onSuccess: (_, v) => {
+      void qc.invalidateQueries({ queryKey: ORDERS_KEY });
+      void qc.invalidateQueries({ queryKey: ORDER_DETAIL(v.orderId) });
     },
   });
 }

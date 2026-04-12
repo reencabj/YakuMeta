@@ -71,6 +71,8 @@ export function DeliverOrderDialog(props: Props) {
   const [lines, setLines] = useState<LineRow[]>([]);
   const [allocError, setAllocError] = useState<string | null>(null);
 
+  const preCobrado = Boolean(o?.cobrado_pre_entrega_at);
+
   const depositsConStock = useMemo(() => {
     const list = (deposits ?? []).filter((d) => d.is_active && d.libre_meta_kg > 0);
     return [...list].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
@@ -152,31 +154,40 @@ export function DeliverOrderDialog(props: Props) {
         {allocError ? <p className="text-sm text-red-400">{allocError}</p> : null}
 
         <div className="space-y-3">
-          <div className="space-y-1">
-            <Label htmlFor="dv-recibio-user">Quién recibió el dinero</Label>
-            <select
-              id="dv-recibio-user"
-              className={cn(
-                "flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm",
-                "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              )}
-              value={recibioUsuarioId}
-              onChange={(e) => setRecibioUsuarioId(e.target.value)}
-              required
-            >
-              <option value="">Elegí un usuario…</option>
-              {(profilesQ.data ?? []).map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.display_name?.trim() ? p.display_name : p.username}
-                </option>
-              ))}
-            </select>
-            <p className="text-[11px] text-muted-foreground">Solo usuarios dados de alta en el sistema.</p>
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="dv-monto">Monto recibido</Label>
-            <Input id="dv-monto" value={monto} onChange={(e) => setMonto(e.target.value)} inputMode="decimal" />
-          </div>
+          {preCobrado ? (
+            <p className="rounded-md border border-primary/25 bg-primary/10 px-3 py-2 text-sm text-foreground">
+              Este pedido ya tiene registrado el cobro (quién recibió el dinero y el monto). Al confirmar la entrega no hace
+              falta volver a cargarlo.
+            </p>
+          ) : (
+            <>
+              <div className="space-y-1">
+                <Label htmlFor="dv-recibio-user">Quién recibió el dinero</Label>
+                <select
+                  id="dv-recibio-user"
+                  className={cn(
+                    "flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm",
+                    "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  )}
+                  value={recibioUsuarioId}
+                  onChange={(e) => setRecibioUsuarioId(e.target.value)}
+                  required
+                >
+                  <option value="">Elegí un usuario…</option>
+                  {(profilesQ.data ?? []).map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.display_name?.trim() ? p.display_name : p.username}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-muted-foreground">Solo usuarios dados de alta en el sistema.</p>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="dv-monto">Monto recibido</Label>
+                <Input id="dv-monto" value={monto} onChange={(e) => setMonto(e.target.value)} inputMode="decimal" />
+              </div>
+            </>
+          )}
           <div className="space-y-1">
             <Label htmlFor="dv-fecha">Fecha y hora de entrega</Label>
             <Input id="dv-fecha" type="datetime-local" value={entregaAt} onChange={(e) => setEntregaAt(e.target.value)} />
@@ -335,10 +346,8 @@ export function DeliverOrderDialog(props: Props) {
             disabled={
               !o ||
               deliverMut.isPending ||
-              !recibioUsuarioId ||
+              (!preCobrado && (!recibioUsuarioId || !Number.isFinite(Number(monto)) || Number(monto) < 0)) ||
               profilesQ.isLoading ||
-              !Number.isFinite(Number(monto)) ||
-              Number(monto) < 0 ||
               !sumOk ||
               batchesQ.isLoading
             }
@@ -358,8 +367,8 @@ export function DeliverOrderDialog(props: Props) {
               await deliverMut.mutateAsync({
                 orderId: o.id,
                 payload: {
-                  recibio_dinero_usuario_id: recibioUsuarioId,
-                  amount_received: Number(monto),
+                  recibio_dinero_usuario_id: preCobrado ? (o.cobrado_recibio_dinero_usuario_id ?? recibioUsuarioId) : recibioUsuarioId,
+                  amount_received: preCobrado ? Number(o.cobrado_monto ?? o.total_sugerido ?? 0) : Number(monto),
                   delivered_at: new Date(entregaAt).toISOString(),
                   notes: notas.trim() || undefined,
                   items: built.items,

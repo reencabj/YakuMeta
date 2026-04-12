@@ -22,15 +22,38 @@ const prioritySortRank = (p: number | null | undefined) => {
   return 2;
 };
 
-/** Solo pendiente / en preparación: prioridad 2 → 1 → sin; mismo nivel, más viejos primero. */
+/** Encargo más cercano primero; sin fecha de encargo al final. */
+function encargoSortKey(fechaEncargo: string | null | undefined): number {
+  const d = parseIsoSafe(fechaEncargo);
+  if (d) return d.getTime();
+  return Number.MAX_SAFE_INTEGER;
+}
+
+/**
+ * Pendiente / en preparación:
+ * 1) Prioridad (2★ → 1★ → sin)
+ * 2) Fecha de entrega pactada (la más próxima primero; sin fecha al final)
+ * 3) Desempates estables: fecha de pedido, created_at, id (evita que las tarjetas “salten” al refetch)
+ */
 export function sortActiveOrders(list: OrderWithCreator[]): OrderWithCreator[] {
   return [...list].sort((a, b) => {
     const ap = prioritySortRank(a.prioridad);
     const bp = prioritySortRank(b.prioridad);
     if (ap !== bp) return ap - bp;
+
+    const ea = encargoSortKey(a.fecha_encargo);
+    const eb = encargoSortKey(b.fecha_encargo);
+    if (ea !== eb) return ea - eb;
+
     const ta = parseIsoSafe(a.fecha_pedido)?.getTime() ?? 0;
     const tb = parseIsoSafe(b.fecha_pedido)?.getTime() ?? 0;
-    return ta - tb;
+    if (ta !== tb) return ta - tb;
+
+    const ca = parseIsoSafe(a.created_at)?.getTime() ?? 0;
+    const cb = parseIsoSafe(b.created_at)?.getTime() ?? 0;
+    if (ca !== cb) return ca - cb;
+
+    return a.id.localeCompare(b.id);
   });
 }
 

@@ -19,17 +19,13 @@ import { useLocationTypesQuery } from "@/hooks/useLocationTypesQuery";
 import { useRegisterStockIntakeMutation, useStockBatchesQuery } from "@/hooks/useStockBatches";
 import { useStockOperationsMutations } from "@/hooks/useStockOperations";
 import { cn } from "@/lib/utils";
-import type { BatchWithRelations } from "@/services/stockBatchesService";
-import { AdjustStockDialog } from "./components/AdjustStockDialog";
 import { DepositFormDialog } from "./components/DepositFormDialog";
 import { DepositDetailDialog } from "./components/DepositDetailDialog";
 import { DepositsByZone } from "./components/DepositsByZone";
-import { EditBatchCompositionDialog } from "./components/EditBatchCompositionDialog";
 import { EmptyDepositDialog } from "./components/EmptyDepositDialog";
 import { ExtractDepositDialog } from "./components/ExtractDepositDialog";
 import { StockIntakeDialog } from "./components/StockIntakeDialog";
 import { StorageGroupsSection } from "./components/StorageGroupsSection";
-import { TransferStockDialog } from "./components/TransferStockDialog";
 
 type StockMainView = "deposits" | "groups";
 
@@ -64,17 +60,10 @@ export function StockPage() {
   const [pendingDeactivate, setPendingDeactivate] = useState<DepositRowModel | null>(null);
   const [stockMainView, setStockMainView] = useState<StockMainView>("deposits");
 
-  const [transferOpen, setTransferOpen] = useState(false);
-  const [transferInitialBatchId, setTransferInitialBatchId] = useState<string | null>(null);
-  const [adjustOpen, setAdjustOpen] = useState(false);
-  const [adjustBatch, setAdjustBatch] = useState<BatchWithRelations | null>(null);
   const [emptyDepositOpen, setEmptyDepositOpen] = useState(false);
   const [emptyDepositRow, setEmptyDepositRow] = useState<DepositRowModel | null>(null);
   const [extractDepositOpen, setExtractDepositOpen] = useState(false);
   const [extractDepositRow, setExtractDepositRow] = useState<DepositRowModel | null>(null);
-  const [compositionOpen, setCompositionOpen] = useState(false);
-  const [compositionBatch, setCompositionBatch] = useState<BatchWithRelations | null>(null);
-
   const [depositDetailOpen, setDepositDetailOpen] = useState(false);
   const [selectedDepositDetail, setSelectedDepositDetail] = useState<DepositRowModel | null>(null);
   const [intakePreferredDepositoId, setIntakePreferredDepositoId] = useState<string | null>(null);
@@ -190,7 +179,7 @@ export function StockPage() {
       <PanelCard
         icon={Package}
         title="Depósitos"
-        description="Agrupados por la primera palabra del nombre. Elegí una zona y tocá un depósito para lotes y acciones."
+        description="Agrupados por la primera palabra del nombre. Elegí una zona y tocá un depósito para ver resumen y acciones."
       >
           <div className="mb-5 flex flex-wrap gap-3 text-sm">
             <label className="flex flex-col gap-1">
@@ -310,7 +299,6 @@ export function StockPage() {
         open={depositDetailOpen}
         onOpenChange={setDepositDetailOpen}
         deposit={selectedDepositDetail}
-        batches={batchesQ.data ?? []}
         isAdmin={isAdmin}
         onRegisterIntake={() => {
           setIntakePreferredDepositoId(selectedDepositDetail?.id ?? null);
@@ -337,21 +325,6 @@ export function StockPage() {
               }
             : undefined
         }
-        onTransferBatch={(b) => {
-          setTransferInitialBatchId(b.id);
-          setTransferOpen(true);
-          setDepositDetailOpen(false);
-        }}
-        onAdjustBatch={(b) => {
-          setAdjustBatch(b);
-          setAdjustOpen(true);
-          setDepositDetailOpen(false);
-        }}
-        onEditComposition={(b) => {
-          setCompositionBatch(b);
-          setCompositionOpen(true);
-          setDepositDetailOpen(false);
-        }}
       />
 
       <StockIntakeDialog
@@ -366,38 +339,6 @@ export function StockPage() {
         onSubmit={async (input) => {
           await intakeMut.mutateAsync(input);
           setIntakeOpen(false);
-        }}
-      />
-
-      <TransferStockDialog
-        open={transferOpen}
-        onOpenChange={(o) => {
-          setTransferOpen(o);
-          if (!o) setTransferInitialBatchId(null);
-        }}
-        batches={batchesQ.data ?? []}
-        deposits={rows ?? []}
-        initialBatchId={transferInitialBatchId}
-        isSubmitting={stockOps.transfer.isPending}
-        onSubmit={async (input) => {
-          await stockOps.transfer.mutateAsync(input);
-          setTransferOpen(false);
-          setTransferInitialBatchId(null);
-        }}
-      />
-
-      <AdjustStockDialog
-        open={adjustOpen}
-        onOpenChange={(o) => {
-          setAdjustOpen(o);
-          if (!o) setAdjustBatch(null);
-        }}
-        batch={adjustBatch}
-        isSubmitting={stockOps.adjust.isPending}
-        onSubmit={async (input) => {
-          await stockOps.adjust.mutateAsync(input);
-          setAdjustOpen(false);
-          setAdjustBatch(null);
         }}
       />
 
@@ -426,21 +367,6 @@ export function StockPage() {
         isSubmitting={stockOps.extractFromDeposit.isPending}
         onSubmit={async (input) => {
           await stockOps.extractFromDeposit.mutateAsync(input);
-        }}
-      />
-
-      <EditBatchCompositionDialog
-        open={compositionOpen}
-        onOpenChange={(o) => {
-          setCompositionOpen(o);
-          if (!o) setCompositionBatch(null);
-        }}
-        batch={compositionBatch}
-        isSubmitting={stockOps.updateComposition.isPending}
-        onSubmit={async (input) => {
-          await stockOps.updateComposition.mutateAsync(input);
-          setCompositionOpen(false);
-          setCompositionBatch(null);
         }}
       />
 
