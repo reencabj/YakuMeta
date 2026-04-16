@@ -34,7 +34,9 @@ END;
 $$;
 
 -- 4) KPIs globales pedidos + stock
-CREATE OR REPLACE VIEW public.v_pedidos_kpis AS
+-- REPLACE no puede quitar columnas si la vista ya existe con más (p. ej. tiradas_faltantes en migraciones posteriores o SQL manual).
+DROP VIEW IF EXISTS public.v_pedidos_kpis CASCADE;
+CREATE VIEW public.v_pedidos_kpis AS
 SELECT
   (
     SELECT coalesce(sum(o.cantidad_meta_kilos), 0)::numeric(18, 4)
@@ -402,5 +404,5 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION public.deliver_order IS 'Entrega: descuenta lotes sin reservas de pedido; producción directa opcional';
-COMMENT ON FUNCTION public.cancel_order IS 'Cancela pedido (sin liberar reservas de lote)';
+COMMENT ON FUNCTION public.deliver_order(uuid, jsonb) IS 'Entrega: descuenta lotes sin reservas de pedido; producción directa opcional';
+COMMENT ON FUNCTION public.cancel_order(uuid, text) IS 'Cancela pedido (sin liberar reservas de lote)';

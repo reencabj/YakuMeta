@@ -1,6 +1,9 @@
 /** 1 kg meta = 50 bolsas (regla operativa). */
 export const BOLSAS_PER_KG_META = 50;
 
+/** Bolsas por tirada (10 packs × 3); debe coincidir con `v_pedidos_kpis.tiradas_faltantes` en SQL. */
+export const BOLSAS_POR_TIRADA = 30;
+
 /** Bolsas exactas desde kg de meta (puede ser decimal). */
 export function bolsasFromMetaKg(kg: number): number {
   if (!Number.isFinite(kg) || kg < 0) return 0;

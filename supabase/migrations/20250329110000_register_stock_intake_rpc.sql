@@ -82,4 +82,5 @@ $$;
 
 grant execute on function public.register_stock_intake(uuid, numeric, date, text) to authenticated;
 
-comment on function public.register_stock_intake is 'Crea lote y movimiento ingreso en una transacción';
+comment on function public.register_stock_intake(uuid, numeric, date, text) is
+  'Crea lote y movimiento ingreso en una transacción';

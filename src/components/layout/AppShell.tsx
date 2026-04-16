@@ -27,9 +27,6 @@ const nav = [
   { to: "/admin", label: "Admin", icon: Settings, adminOnly: true },
 ];
 
-const BOLSAS_POR_KG_META = 50;
-const BOLSAS_POR_TIRADA = 30; // 10 packs x 3 bolsitas
-
 export function AppShell() {
   const { profile, signOut } = useAuth();
   const settingsQ = useAppSettingsQuery();
@@ -37,9 +34,7 @@ export function AppShell() {
   const pedidosKpi = usePedidosKpiQuery();
 
   const appTitle = settingsQ.data?.app_name?.trim() || DEFAULT_APP_TITLE;
-  const faltaNum = Number(pedidosKpi.data?.faltante_preparar_kg ?? 0);
-  const faltaPositiva = Number.isFinite(faltaNum) ? Math.max(0, faltaNum) : 0;
-  const tiradasNecesarias = Math.ceil((faltaPositiva * BOLSAS_POR_KG_META) / BOLSAS_POR_TIRADA);
+  const tiradasNecesarias = pedidosKpi.data?.tiradas_faltantes;
 
   useEffect(() => {
     document.title = appTitle;
@@ -111,7 +106,7 @@ export function AppShell() {
               />
               <MetricPill
                 label="Tiradas necesarias"
-                value={String(tiradasNecesarias)}
+                value={tiradasNecesarias != null ? String(tiradasNecesarias) : "—"}
                 loading={pedidosKpi.isLoading}
                 tone="success"
                 unit="tiradas"

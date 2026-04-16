@@ -16,9 +16,6 @@ import { fmtKgDisplay } from "@/lib/format-kilo";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 
-const BOLSAS_POR_KG_META = 50;
-const BOLSAS_POR_TIRADA = 30; // 10 packs x 3 bolsitas
-
 function fmtInt(n: number) {
   return new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 }).format(n);
 }
@@ -59,9 +56,7 @@ export function DashboardPage() {
   const pedidosKg = pedidosKpi.data?.total_pedidos_abiertos_kg;
   const stockKpi = pedidosKpi.data?.total_stock_disponible_kg;
   const falta = pedidosKpi.data?.faltante_preparar_kg;
-  const faltaNum = Number(falta ?? 0);
-  const faltaPositiva = Number.isFinite(faltaNum) ? Math.max(0, faltaNum) : 0;
-  const tiradasNecesarias = Math.ceil((faltaPositiva * BOLSAS_POR_KG_META) / BOLSAS_POR_TIRADA);
+  const tiradasNecesarias = pedidosKpi.data?.tiradas_faltantes;
 
   const loading = stock.isLoading || pedidosKpi.isLoading;
   const capLoading = capQ.isLoading;
@@ -113,7 +108,13 @@ export function DashboardPage() {
         <StatTile
           icon={Package}
           label="Tiradas necesarias"
-          value={pedidosKpi.isLoading ? "…" : String(tiradasNecesarias)}
+          value={
+            pedidosKpi.isLoading
+              ? "…"
+              : tiradasNecesarias != null
+                ? String(tiradasNecesarias)
+                : "—"
+          }
           unit="tiradas"
           hint="Estimado para cubrir 'Falta preparar' (redondeo hacia arriba)"
           tone="emerald"

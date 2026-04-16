@@ -2,11 +2,18 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 type TipoEvento = "nuevo_pedido" | "pedido_entregado";
 
+type OrigenPedido = "admin" | "portal_clientes";
+
 type NotifyBody = {
   tipo_evento: TipoEvento;
   cliente: string;
   kilos: number;
   monto?: number;
+  origen_pedido?: OrigenPedido;
+  /** KPI globales (misma vista `v_pedidos_kpis` que la app). */
+  pedidos_abiertos_kg?: number;
+  stock_disponible_kg?: number;
+  tiradas_faltantes?: number;
 };
 
 type OkResponse = { ok: true } | { ok: false; error: string };
@@ -48,6 +55,20 @@ function jsonResponse(req: Request, body: OkResponse, status = 200): Response {
   });
 }
 
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let x = 0;
+  for (let i = 0; i < a.length; i++) x |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return x === 0;
+}
+
+function isServiceRoleRequest(authHeader: string | null): boolean {
+  const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")?.trim();
+  if (!service || !authHeader?.startsWith("Bearer ")) return false;
+  const token = authHeader.slice("Bearer ".length).trim();
+  return timingSafeEqual(token, service);
+}
+
 function formatMonto(monto: number): string {
   if (!Number.isFinite(monto)) return "—";
   const rounded = Math.round(monto * 100) / 100;
@@ -61,11 +82,31 @@ function formatMonto(monto: number): string {
   return `$${s}`;
 }
 
+function origenLabel(origen?: OrigenPedido): string {
+  if (origen === "portal_clientes") return "Portal de clientes";
+  return "Panel interno";
+}
+
+function fmtKgKpi(n: number | undefined | null): string {
+  if (n === undefined || n === null || !Number.isFinite(n)) return "—";
+  const s = new Intl.NumberFormat("es-AR", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(n);
+  return `${s} kg`;
+}
+
+function fmtTiradas(n: number | undefined | null): string {
+  if (n === undefined || n === null || !Number.isFinite(n)) return "—";
+  return String(Math.round(n));
+}
+
 function buildEmbed(body: NotifyBody, timestampIso: string): DiscordEmbed {
   const cliente = (body.cliente ?? "").trim() || "—";
   const kilosStr = Number.isFinite(body.kilos) ? `${body.kilos} kg` : "—";
 
   if (body.tipo_evento === "nuevo_pedido") {
+    const origen = origenLabel(body.origen_pedido);
     return {
       title: "🧾 Nuevo pedido",
       description: "Se registró un nuevo pedido",
@@ -73,6 +114,10 @@ function buildEmbed(body: NotifyBody, timestampIso: string): DiscordEmbed {
       fields: [
         { name: "👤 Cliente", value: cliente, inline: true },
         { name: "📦 Cantidad", value: kilosStr, inline: true },
+        { name: "🌐 Origen", value: origen, inline: true },
+        { name: "📊 Pedidos abiertos", value: fmtKgKpi(body.pedidos_abiertos_kg), inline: true },
+        { name: "📦 Stock disponible", value: fmtKgKpi(body.stock_disponible_kg), inline: true },
+        { name: "🧪 Tiradas faltantes", value: fmtTiradas(body.tiradas_faltantes), inline: true },
       ],
       footer: { text: "Sistema de pedidos" },
       timestamp: timestampIso,
@@ -102,10 +147,47 @@ function buildPayload(embed: DiscordEmbed): DiscordWebhookPayload {
   };
 }
 
-/** Límite práctico de Discord para el cuerpo del embed (documentación ~6000 chars en embeds combinados). */
 function payloadWithinDiscordLimits(payload: DiscordWebhookPayload): boolean {
-  const n = JSON.stringify(payload).length;
-  return n <= 5500;
+  return JSON.stringify(payload).length <= 5500;
+}
+
+/** PostgREST suele devolver `numeric` como string; el cliente a veces manda strings o omite claves. */
+function coerceFiniteNumber(v: unknown): number | undefined {
+  if (v === null || v === undefined) return undefined;
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string" && v.trim() !== "") {
+    const n = Number(v.replace(",", "."));
+    return Number.isFinite(n) ? n : undefined;
+  }
+  return undefined;
+}
+
+/**
+ * Misma vista que la UI; con service role se evita depender de que el cliente haya podido leer la fila
+ * (NaN → JSON null, tipos string, etc.).
+ */
+async function loadPedidosKpisFromDb(): Promise<
+  Pick<NotifyBody, "pedidos_abiertos_kg" | "stock_disponible_kg" | "tiradas_faltantes"> | null
+> {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")?.trim();
+  if (!supabaseUrl || !service) {
+    console.error("[notify-discord] loadPedidosKpisFromDb: missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
+    return null;
+  }
+  const admin = createClient(supabaseUrl, service);
+  const { data, error } = await admin.from("v_pedidos_kpis").select("*").maybeSingle();
+  if (error) {
+    console.error("[notify-discord] v_pedidos_kpis select", error.message);
+    return null;
+  }
+  if (!data || typeof data !== "object") return null;
+  const row = data as Record<string, unknown>;
+  return {
+    pedidos_abiertos_kg: coerceFiniteNumber(row.total_pedidos_abiertos_kg),
+    stock_disponible_kg: coerceFiniteNumber(row.total_stock_disponible_kg),
+    tiradas_faltantes: coerceFiniteNumber(row.tiradas_faltantes),
+  };
 }
 
 function parseBody(raw: unknown): { ok: true; value: NotifyBody } | { ok: false; error: string } {
@@ -127,12 +209,26 @@ function parseBody(raw: unknown): { ok: true; value: NotifyBody } | { ok: false;
   }
 
   if (tipo === "nuevo_pedido") {
+    const rawOrigen = o.origen_pedido;
+    let origen_pedido: OrigenPedido | undefined;
+    if (rawOrigen === undefined || rawOrigen === null) {
+      origen_pedido = undefined;
+    } else if (rawOrigen === "admin" || rawOrigen === "portal_clientes") {
+      origen_pedido = rawOrigen;
+    } else {
+      return { ok: false, error: "invalid_origen_pedido" };
+    }
+
     return {
       ok: true,
       value: {
         tipo_evento: "nuevo_pedido",
         cliente: cliente.trim(),
         kilos,
+        origen_pedido,
+        pedidos_abiertos_kg: coerceFiniteNumber(o.pedidos_abiertos_kg),
+        stock_disponible_kg: coerceFiniteNumber(o.stock_disponible_kg),
+        tiradas_faltantes: coerceFiniteNumber(o.tiradas_faltantes),
       },
     };
   }
@@ -152,6 +248,28 @@ function parseBody(raw: unknown): { ok: true; value: NotifyBody } | { ok: false;
   };
 }
 
+async function assertUserJwt(authHeader: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  if (!supabaseUrl || !anonKey) {
+    console.error("[notify-discord] server_misconfigured (missing SUPABASE_URL or SUPABASE_ANON_KEY)");
+    return { ok: false, error: "server_misconfigured" };
+  }
+  const supabaseUser = createClient(supabaseUrl, anonKey, {
+    global: { headers: { Authorization: authHeader } },
+  });
+  const jwt = authHeader.slice("Bearer ".length);
+  const {
+    data: { user },
+    error: userErr,
+  } = await supabaseUser.auth.getUser(jwt);
+  if (userErr || !user) {
+    console.error("[notify-discord] invalid_jwt", userErr?.message);
+    return { ok: false, error: "invalid_jwt" };
+  }
+  return { ok: true };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders(req) });
@@ -161,44 +279,44 @@ Deno.serve(async (req) => {
     return jsonResponse(req, { ok: false, error: "method_not_allowed" }, 405);
   }
 
-  const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
-  if (!supabaseUrl || !anonKey) {
-    console.error("[notify-discord] server_misconfigured (missing SUPABASE_URL or SUPABASE_ANON_KEY)");
-    return jsonResponse(req, { ok: false, error: "server_misconfigured" }, 500);
-  }
-
   const authHeader = req.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
     return jsonResponse(req, { ok: false, error: "missing_authorization" }, 401);
   }
 
-  const jwt = authHeader.slice("Bearer ".length);
-  const supabaseUser = createClient(supabaseUrl, anonKey, {
-    global: { headers: { Authorization: authHeader } },
-  });
-  const {
-    data: { user },
-    error: userErr,
-  } = await supabaseUser.auth.getUser(jwt);
-
-  if (userErr || !user) {
-    console.error("[notify-discord] invalid_jwt", userErr?.message);
-    return jsonResponse(req, { ok: false, error: "invalid_jwt" }, 401);
-  }
-
-  let parsed: NotifyBody;
+  let raw: unknown;
   try {
-    const raw = await req.json();
-    const pr = parseBody(raw);
-    if (!pr.ok) {
-      console.error("[notify-discord] validation_error", pr.error);
-      return jsonResponse(req, { ok: false, error: pr.error }, 400);
-    }
-    parsed = pr.value;
+    raw = await req.json();
   } catch (e) {
     console.error("[notify-discord] json_parse_error", e);
     return jsonResponse(req, { ok: false, error: "invalid_json" }, 400);
+  }
+
+  const internal = isServiceRoleRequest(authHeader);
+  if (!internal) {
+    const authRes = await assertUserJwt(authHeader);
+    if (!authRes.ok) {
+      return jsonResponse(req, { ok: false, error: authRes.error }, authRes.error === "server_misconfigured" ? 500 : 401);
+    }
+  }
+
+  const pr = parseBody(raw);
+  if (!pr.ok) {
+    console.error("[notify-discord] validation_error", pr.error);
+    return jsonResponse(req, { ok: false, error: pr.error }, 400);
+  }
+  let parsed = pr.value;
+
+  if (parsed.tipo_evento === "nuevo_pedido") {
+    const fromDb = await loadPedidosKpisFromDb();
+    if (fromDb) {
+      parsed = {
+        ...parsed,
+        pedidos_abiertos_kg: fromDb.pedidos_abiertos_kg ?? parsed.pedidos_abiertos_kg,
+        stock_disponible_kg: fromDb.stock_disponible_kg ?? parsed.stock_disponible_kg,
+        tiradas_faltantes: fromDb.tiradas_faltantes ?? parsed.tiradas_faltantes,
+      };
+    }
   }
 
   const webhookUrl = Deno.env.get("DISCORD_WEBHOOK_URL")?.trim();

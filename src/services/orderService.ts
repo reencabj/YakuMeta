@@ -37,10 +37,26 @@ export type DeliverPayload = {
   items: DeliverItemInput[];
 };
 
-/** Cuerpo enviado a la Edge Function `notify-discord` (tipado compartido con el backend). */
+/** Origen de alta del pedido (persistido en `orders.origen_pedido` vía RPC `create_order`). */
+export type OrderOrigenPedido = "admin" | "portal_clientes";
+
+/** Payload hacia `notify-discord` (misma Edge Function para alta y entrega). */
 export type NotifyDiscordPayload =
-  | { tipo_evento: "nuevo_pedido"; cliente: string; kilos: number }
-  | { tipo_evento: "pedido_entregado"; cliente: string; kilos: number; monto: number };
+  | {
+      tipo_evento: "nuevo_pedido";
+      cliente: string;
+      kilos: number;
+      origen_pedido?: OrderOrigenPedido;
+      pedidos_abiertos_kg?: number;
+      stock_disponible_kg?: number;
+      tiradas_faltantes?: number | null;
+    }
+  | {
+      tipo_evento: "pedido_entregado";
+      cliente: string;
+      kilos: number;
+      monto: number;
+    };
 
 export type OpenOrderCoberturaRow = {
   order_id: string;
@@ -62,6 +78,34 @@ const orderSelect = `
     display_name
   )
 `;
+
+/**
+ * Notificación de “nuevo pedido” usando la misma vista `v_pedidos_kpis` que la UI.
+ * Exportada para reutilizar desde el portal (misma app u otro bundle) sin duplicar fórmulas.
+ */
+export async function notifyDiscordNuevoPedidoFromKpi(input: {
+  cliente: string;
+  kilos: number;
+  origen_pedido: OrderOrigenPedido;
+}): Promise<void> {
+  const { data: kpi, error: kpiErr } = await supabase
+    .from("v_pedidos_kpis")
+    .select("*")
+    .maybeSingle();
+  if (kpiErr) {
+    console.error("[notify-discord] no se pudieron leer KPI (v_pedidos_kpis)", kpiErr);
+  }
+  const row = kpi as Database["public"]["Views"]["v_pedidos_kpis"]["Row"] | null;
+  await notifyDiscordOrderEvent({
+    tipo_evento: "nuevo_pedido",
+    cliente: input.cliente,
+    kilos: input.kilos,
+    origen_pedido: input.origen_pedido,
+    pedidos_abiertos_kg: row != null ? Number(row.total_pedidos_abiertos_kg) : undefined,
+    stock_disponible_kg: row != null ? Number(row.total_stock_disponible_kg) : undefined,
+    tiradas_faltantes: row?.tiradas_faltantes != null ? Number(row.tiradas_faltantes) : undefined,
+  });
+}
 
 /** Notificación secundaria a Discord; nunca lanza (errores solo en consola). */
 async function notifyDiscordOrderEvent(payload: NotifyDiscordPayload): Promise<void> {
@@ -173,6 +217,8 @@ export async function createOrder(input: {
   fecha_pedido: string;
   fecha_encargo: string | null;
   notas: string | null;
+  /** Por defecto `admin` (panel interno). El portal de clientes debe pasar `portal_clientes`. */
+  origen_pedido?: OrderOrigenPedido;
 }): Promise<string> {
   const { data, error } = await supabase.rpc("create_order", {
     p_cliente_nombre: input.cliente_nombre,
@@ -180,13 +226,14 @@ export async function createOrder(input: {
     p_fecha_pedido: input.fecha_pedido,
     p_fecha_encargo: input.fecha_encargo,
     p_notas: input.notas,
+    p_origen_pedido: input.origen_pedido ?? "admin",
   });
   if (error) throw error;
   const orderId = data as string;
-  await notifyDiscordOrderEvent({
-    tipo_evento: "nuevo_pedido",
+  await notifyDiscordNuevoPedidoFromKpi({
     cliente: input.cliente_nombre,
     kilos: input.cantidad_meta_kilos,
+    origen_pedido: input.origen_pedido ?? "admin",
   });
   return orderId;
 }

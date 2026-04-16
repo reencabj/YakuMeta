@@ -15,7 +15,7 @@ comment on column public.stock_batches.metadata is 'Opcional: modo_ingreso, pack
 -- -----------------------------------------------------------------------------
 -- storage_groups: unidad lógica de almacenamiento
 -- -----------------------------------------------------------------------------
-create table public.storage_groups (
+create table if not exists public.storage_groups (
   id uuid primary key default gen_random_uuid(),
   nombre text not null,
   descripcion text,
@@ -26,8 +26,9 @@ create table public.storage_groups (
   updated_by uuid references public.profiles (id)
 );
 
-create index idx_storage_groups_activo on public.storage_groups (activo);
+create index if not exists idx_storage_groups_activo on public.storage_groups (activo);
 
+drop trigger if exists trg_storage_groups_updated_at on public.storage_groups;
 create trigger trg_storage_groups_updated_at
   before update on public.storage_groups
   for each row execute function public.set_updated_at();
@@ -35,7 +36,7 @@ create trigger trg_storage_groups_updated_at
 -- -----------------------------------------------------------------------------
 -- storage_group_members: depósitos por grupo (un depósito = una fila como máximo)
 -- -----------------------------------------------------------------------------
-create table public.storage_group_members (
+create table if not exists public.storage_group_members (
   id uuid primary key default gen_random_uuid(),
   group_id uuid not null references public.storage_groups (id) on delete cascade,
   storage_location_id uuid not null references public.storage_locations (id) on delete cascade,
@@ -44,8 +45,8 @@ create table public.storage_group_members (
   constraint uq_storage_group_members_location unique (storage_location_id)
 );
 
-create index idx_storage_group_members_group on public.storage_group_members (group_id);
-create index idx_storage_group_members_location on public.storage_group_members (storage_location_id);
+create index if not exists idx_storage_group_members_group on public.storage_group_members (group_id);
+create index if not exists idx_storage_group_members_location on public.storage_group_members (storage_location_id);
 
 comment on table public.storage_groups is 'Agrupa depósitos como unidad operativa para métricas y futura recomendación de pedidos';
 comment on table public.storage_group_members is 'Miembros de un grupo; un depósito solo puede estar en un grupo (MVP)';
@@ -135,6 +136,9 @@ grant execute on function public.recommend_storage_groups_for_meta(numeric) to a
 alter table public.storage_groups enable row level security;
 alter table public.storage_group_members enable row level security;
 
+drop policy if exists "storage_groups_select" on public.storage_groups;
+drop policy if exists "storage_groups_write_admin" on public.storage_groups;
+
 create policy "storage_groups_select"
   on public.storage_groups for select
   to authenticated
@@ -145,6 +149,9 @@ create policy "storage_groups_write_admin"
   to authenticated
   using (public.is_admin())
   with check (public.is_admin());
+
+drop policy if exists "storage_group_members_select" on public.storage_group_members;
+drop policy if exists "storage_group_members_write_admin" on public.storage_group_members;
 
 create policy "storage_group_members_select"
   on public.storage_group_members for select

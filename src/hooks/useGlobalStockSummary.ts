@@ -20,6 +20,8 @@ export type PedidosKpiRow = {
   pedidos_abiertos_count: number;
   total_stock_disponible_kg: number;
   faltante_preparar_kg: number;
+  /** Misma fórmula que la vista SQL (`ceil(falta * 50/30)`). */
+  tiradas_faltantes: number | null;
 };
 
 export function useGlobalStockSummary() {

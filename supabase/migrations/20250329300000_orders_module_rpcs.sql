@@ -934,9 +934,10 @@ GRANT EXECUTE ON FUNCTION public.suggest_reservations_for_order(uuid) TO authent
 GRANT EXECUTE ON FUNCTION public.deliver_order(uuid, jsonb) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.cancel_order(uuid, text) TO authenticated;
 
-COMMENT ON FUNCTION public.create_order IS 'Alta de pedido con snapshot de precio sugerido';
-COMMENT ON FUNCTION public.reserve_from_batches IS 'Reserva absoluta por lote (JSON array); valida disponibilidad';
-COMMENT ON FUNCTION public.release_reservations_for_order IS 'Libera todas las reservas del pedido';
-COMMENT ON FUNCTION public.suggest_reservations_for_order IS 'Propuesta de reserva por grupos + FIFO; no modifica datos';
-COMMENT ON FUNCTION public.deliver_order IS 'Entrega: stock y/o producción directa; cierra pedido';
-COMMENT ON FUNCTION public.cancel_order IS 'Cancela pedido y libera reservas';
+COMMENT ON FUNCTION public.create_order(text, numeric, date, date, text) IS
+  'Alta de pedido con snapshot de precio sugerido';
+COMMENT ON FUNCTION public.reserve_from_batches(uuid, jsonb) IS 'Reserva absoluta por lote (JSON array); valida disponibilidad';
+COMMENT ON FUNCTION public.release_reservations_for_order(uuid) IS 'Libera todas las reservas del pedido';
+COMMENT ON FUNCTION public.suggest_reservations_for_order(uuid) IS 'Propuesta de reserva por grupos + FIFO; no modifica datos';
+COMMENT ON FUNCTION public.deliver_order(uuid, jsonb) IS 'Entrega: stock y/o producción directa; cierra pedido';
+COMMENT ON FUNCTION public.cancel_order(uuid, text) IS 'Cancela pedido y libera reservas';

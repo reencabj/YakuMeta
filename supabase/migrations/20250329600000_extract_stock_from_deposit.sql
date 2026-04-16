@@ -123,5 +123,5 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.extract_stock_from_deposit(uuid, numeric, text) TO authenticated;
 
-COMMENT ON FUNCTION public.extract_stock_from_deposit IS
+COMMENT ON FUNCTION public.extract_stock_from_deposit(uuid, numeric, text) IS
   'FIFO por fecha_guardado: descuenta kg libres del depósito; movimientos ajuste_admin + auditoría.';

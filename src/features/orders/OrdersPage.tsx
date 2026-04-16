@@ -16,9 +16,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PageHeader, PageShell, PanelCard, StatTile } from "@/components/shell";
 import { fmtKgDisplay } from "@/lib/format-kilo";
+import { BOLSAS_PER_KG_META } from "@/lib/meta-bags";
 import { formatIsoSafe, parseIsoSafe } from "@/lib/format-date";
 import { cn } from "@/lib/utils";
-import { BOLSAS_PER_KG_META } from "@/lib/meta-bags";
 import { usePedidosKpiQuery } from "@/hooks/useGlobalStockSummary";
 import {
   useCancelOrderMutation,
@@ -55,7 +55,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 
 const ESTADOS: (OrderState | "all")[] = ["all", "pendiente", "en_preparacion", "entregado", "cancelado"];
-const BOLSAS_POR_TIRADA = 30; // 10 packs x 3 bolsitas
 
 export function OrdersPage() {
   const ordersQ = useOrdersQuery();
@@ -140,9 +139,7 @@ export function OrdersPage() {
   );
   /** ARS sin espacio entre símbolo y monto (p. ej. `$180.000`). */
   const formatPrecioArs = (n: number) => moneyFmt.format(n).replace(/\$\s+/u, () => "$");
-  const faltaNum = Number(pedidosKpi.data?.faltante_preparar_kg ?? 0);
-  const faltaPositiva = Number.isFinite(faltaNum) ? Math.max(0, faltaNum) : 0;
-  const tiradasNecesarias = Math.ceil((faltaPositiva * BOLSAS_PER_KG_META) / BOLSAS_POR_TIRADA);
+  const tiradasNecesarias = pedidosKpi.data?.tiradas_faltantes;
 
   return (
     <PageShell>
@@ -191,7 +188,9 @@ export function OrdersPage() {
           dense
           icon={Package}
           label="Tiradas necesarias"
-          value={pedidosKpi.isLoading ? "…" : String(tiradasNecesarias)}
+          value={
+            pedidosKpi.isLoading ? "…" : tiradasNecesarias != null ? String(tiradasNecesarias) : "—"
+          }
           unit="tiradas"
           tone="emerald"
         />

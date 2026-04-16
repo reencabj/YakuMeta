@@ -3,6 +3,8 @@
 
 drop policy if exists "storage_locations_insert_admin" on public.storage_locations;
 drop policy if exists "storage_locations_update_admin" on public.storage_locations;
+drop policy if exists "storage_locations_insert_authenticated" on public.storage_locations;
+drop policy if exists "storage_locations_update_authenticated" on public.storage_locations;
 
 create policy "storage_locations_insert_authenticated"
   on public.storage_locations for insert

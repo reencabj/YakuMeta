@@ -133,7 +133,7 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION public.admin_system_snapshot IS
+COMMENT ON FUNCTION public.admin_system_snapshot() IS
   'Conteos y chequeos livianos para panel Admin; solo rol admin.';
 
 GRANT EXECUTE ON FUNCTION public.admin_system_snapshot() TO authenticated;

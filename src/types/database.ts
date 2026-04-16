@@ -205,6 +205,7 @@ export interface Database {
           cobrado_pre_entrega_at: string | null;
           cobrado_recibio_dinero_usuario_id: string | null;
           cobrado_monto: number | null;
+          origen_pedido: "admin" | "portal_clientes";
           created_at: string;
           updated_at: string;
           updated_by: string | null;
@@ -225,6 +226,7 @@ export interface Database {
           cobrado_pre_entrega_at?: string | null;
           cobrado_recibio_dinero_usuario_id?: string | null;
           cobrado_monto?: number | null;
+          origen_pedido?: "admin" | "portal_clientes";
         };
         Update: Partial<Database["public"]["Tables"]["orders"]["Insert"]>;
       };
@@ -401,6 +403,7 @@ export interface Database {
           pedidos_abiertos_count: number;
           total_stock_disponible_kg: number;
           faltante_preparar_kg: number;
+          tiradas_faltantes: number | null;
         };
       };
       v_open_orders_cobertura: {
@@ -519,6 +522,7 @@ export interface Database {
           p_fecha_pedido: string;
           p_fecha_encargo: string | null;
           p_notas: string | null;
+          p_origen_pedido?: "admin" | "portal_clientes";
         };
         Returns: string;
       };

@@ -84,5 +84,5 @@ CREATE TRIGGER on_auth_user_updated_email
   FOR EACH ROW
   execute function public.handle_auth_user_email_updated();
 
-COMMENT ON FUNCTION public.handle_new_user IS 'Inserta/upsert profiles al crear usuario Auth; rol operativo lo confirma invite-user (admin).';
-COMMENT ON FUNCTION public.handle_auth_user_email_updated IS 'Replica cambio de email en profiles.';
+COMMENT ON FUNCTION public.handle_new_user() IS 'Inserta/upsert profiles al crear usuario Auth; rol operativo lo confirma invite-user (admin).';
+COMMENT ON FUNCTION public.handle_auth_user_email_updated() IS 'Replica cambio de email en profiles.';

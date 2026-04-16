@@ -459,7 +459,7 @@ GRANT EXECUTE ON FUNCTION public.adjust_stock_batch_quantity(uuid, numeric, text
 GRANT EXECUTE ON FUNCTION public.empty_storage_location_stock(uuid, text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.update_batch_composition(uuid, integer, integer, text, text) TO authenticated;
 
-COMMENT ON FUNCTION public.transfer_stock_batch IS 'Admin: mueve cantidad disponible de un lote a un nuevo lote en otro depósito; auditado.';
-COMMENT ON FUNCTION public.adjust_stock_batch_quantity IS 'Admin: fija nueva cantidad de meta en un lote; auditado.';
-COMMENT ON FUNCTION public.empty_storage_location_stock IS 'Admin: deja en 0 todos los lotes con stock del depósito; auditado.';
-COMMENT ON FUNCTION public.update_batch_composition IS 'Admin: recalcula kg desde packs/bolsas y actualiza metadata; auditado.';
+COMMENT ON FUNCTION public.transfer_stock_batch(uuid, uuid, numeric, text) IS 'Admin: mueve cantidad disponible de un lote a un nuevo lote en otro depósito; auditado.';
+COMMENT ON FUNCTION public.adjust_stock_batch_quantity(uuid, numeric, text, text) IS 'Admin: fija nueva cantidad de meta en un lote; auditado.';
+COMMENT ON FUNCTION public.empty_storage_location_stock(uuid, text) IS 'Admin: deja en 0 todos los lotes con stock del depósito; auditado.';
+COMMENT ON FUNCTION public.update_batch_composition(uuid, integer, integer, text, text) IS 'Admin: recalcula kg desde packs/bolsas y actualiza metadata; auditado.';
