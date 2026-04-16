@@ -3,3 +3,7 @@
 
 [functions.invite-user]
 verify_jwt = true
+
+# false: desde el navegador el preflight OPTIONS no lleva JWT; con true el gateway suele responder 401/CORS. El JWT se valida en cada POST dentro de la función.
+[functions.notify-discord]
+verify_jwt = false

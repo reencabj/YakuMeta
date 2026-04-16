@@ -37,6 +37,11 @@ export type DeliverPayload = {
   items: DeliverItemInput[];
 };
 
+/** Cuerpo enviado a la Edge Function `notify-discord` (tipado compartido con el backend). */
+export type NotifyDiscordPayload =
+  | { tipo_evento: "nuevo_pedido"; cliente: string; kilos: number }
+  | { tipo_evento: "pedido_entregado"; cliente: string; kilos: number; monto: number };
+
 export type OpenOrderCoberturaRow = {
   order_id: string;
   cum_kg: number;
@@ -57,6 +62,32 @@ const orderSelect = `
     display_name
   )
 `;
+
+/** Notificación secundaria a Discord; nunca lanza (errores solo en consola). */
+async function notifyDiscordOrderEvent(payload: NotifyDiscordPayload): Promise<void> {
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      console.warn("[notify-discord] sin sesión: no se envía (el pedido ya se registró)");
+      return;
+    }
+    const { data, error } = await supabase.functions.invoke<unknown>("notify-discord", {
+      body: payload,
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    if (error) {
+      console.error("[notify-discord] invoke error", error);
+      return;
+    }
+    if (data && typeof data === "object" && "ok" in data && (data as { ok?: boolean }).ok === false) {
+      console.error("[notify-discord] function returned ok: false", data);
+    }
+  } catch (e) {
+    console.error("[notify-discord] unexpected failure", e);
+  }
+}
 
 export async function fetchOrdersWithCreator(): Promise<OrderWithCreator[]> {
   const { data, error } = await supabase.from("orders").select(orderSelect).eq("is_active", true);
@@ -151,7 +182,13 @@ export async function createOrder(input: {
     p_notas: input.notas,
   });
   if (error) throw error;
-  return data as string;
+  const orderId = data as string;
+  await notifyDiscordOrderEvent({
+    tipo_evento: "nuevo_pedido",
+    cliente: input.cliente_nombre,
+    kilos: input.cantidad_meta_kilos,
+  });
+  return orderId;
 }
 
 export async function markOrderCobradoPreEntrega(
@@ -195,6 +232,15 @@ export async function updateOrderPatch(
 }
 
 export async function deliverOrder(orderId: string, payload: DeliverPayload): Promise<string> {
+  const { data: orderRow } = await supabase
+    .from("orders")
+    .select("cliente_nombre, cantidad_meta_kilos")
+    .eq("id", orderId)
+    .maybeSingle();
+
+  const clienteNotify = (orderRow?.cliente_nombre as string | undefined)?.trim() || "—";
+  const kilosNotify = Number(orderRow?.cantidad_meta_kilos ?? NaN);
+
   const p: Json = {
     recibio_dinero_usuario_id: payload.recibio_dinero_usuario_id,
     amount_received: payload.amount_received,
@@ -212,7 +258,14 @@ export async function deliverOrder(orderId: string, payload: DeliverPayload): Pr
     p_payload: p,
   });
   if (error) throw error;
-  return data as string;
+  const deliveryId = data as string;
+  await notifyDiscordOrderEvent({
+    tipo_evento: "pedido_entregado",
+    cliente: clienteNotify,
+    kilos: Number.isFinite(kilosNotify) && kilosNotify > 0 ? kilosNotify : payload.items.reduce((s, i) => s + i.quantity_meta_kilos, 0),
+    monto: payload.amount_received,
+  });
+  return deliveryId;
 }
 
 export async function cancelOrder(orderId: string, reason: string | null): Promise<void> {
