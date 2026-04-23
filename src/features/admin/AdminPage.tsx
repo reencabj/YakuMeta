@@ -27,6 +27,7 @@ import {
 } from "@/services/adminService";
 import { fetchAppSettings, updateAppSettings, type AppSettingsRow } from "@/services/appSettingsService";
 import { authRecoveryRedirectUrl, supabase } from "@/lib/supabase";
+import { suggestedPricePerKgMeta } from "@/lib/order-pricing";
 import { PageHeader, PageShell, PanelCard, SegmentTabs } from "@/components/shell";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -37,16 +38,6 @@ import type { Database, UserRole } from "@/types/database";
 import { cn } from "@/lib/utils";
 
 type Tab = "users" | "types" | "settings" | "pricing" | "groups" | "maintenance";
-
-function suggestedPricePerKg(kg: number, rules: PricingRuleRow[], base: number | null): number {
-  const active = rules
-    .filter((r) => r.is_active)
-    .sort((a, b) => b.prioridad - a.prioridad || b.cantidad_minima_kilos - a.cantidad_minima_kilos);
-  for (const r of active) {
-    if (kg >= r.cantidad_minima_kilos) return Number(r.precio_por_kilo);
-  }
-  return base != null ? Number(base) : 0;
-}
 
 export function AdminPage() {
   const [tab, setTab] = useState<Tab>("users");
@@ -165,7 +156,7 @@ export function AdminPage() {
   const settings = settingsQ.data;
   const rules = pricingQ.data ?? [];
   const sample = Number(sampleKg) || 0;
-  const sug = suggestedPricePerKg(sample, rules, settings?.precio_base_por_kilo ?? null);
+  const sug = suggestedPricePerKgMeta(sample, rules, settings?.precio_base_por_kilo ?? null);
 
   return (
     <PageShell>

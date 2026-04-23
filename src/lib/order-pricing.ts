@@ -1,14 +1,32 @@
+export type PricingRuleLike = {
+  cantidad_minima_kilos: number;
+  precio_por_kilo: number;
+  prioridad: number;
+  is_active: boolean;
+};
+
 /**
- * Precio sugerido por kg de meta (ARS) según cantidad total del pedido.
- * - Menos de 3 kg: 90.000/kg
- * - De 3 kg a menos de 6 kg: 80.000/kg
- * - 6 kg o más: 75.000/kg
+ * Misma lógica que public.resolve_suggested_price_per_kg:
+ * 1) regla activa con mayor mínimo de kg que aplique;
+ *    si hay empate en mínimo, gana mayor prioridad;
+ * 2) fallback a precio base de app_settings;
+ * 3) fallback final a 0.
  */
-export function suggestedPricePerKgMeta(cantidadMetaKilos: number): number {
+export function suggestedPricePerKgMeta(
+  cantidadMetaKilos: number,
+  rules: PricingRuleLike[],
+  basePricePerKg: number | null
+): number {
   if (!Number.isFinite(cantidadMetaKilos) || cantidadMetaKilos <= 0) {
-    return 90000;
+    return basePricePerKg != null ? Number(basePricePerKg) : 0;
   }
-  if (cantidadMetaKilos >= 6) return 75000;
-  if (cantidadMetaKilos >= 3) return 80000;
-  return 90000;
+  const active = rules
+    .filter((r) => r.is_active)
+    .sort((a, b) => b.cantidad_minima_kilos - a.cantidad_minima_kilos || b.prioridad - a.prioridad);
+  for (const r of active) {
+    if (cantidadMetaKilos >= Number(r.cantidad_minima_kilos)) {
+      return Number(r.precio_por_kilo);
+    }
+  }
+  return basePricePerKg != null ? Number(basePricePerKg) : 0;
 }

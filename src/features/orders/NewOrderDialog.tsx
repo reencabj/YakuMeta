@@ -13,6 +13,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { suggestedPricePerKgMeta } from "@/lib/order-pricing";
 import { useCreateOrderMutation } from "@/hooks/useOrders";
+import { useQuery } from "@tanstack/react-query";
+import { fetchPricingRules } from "@/services/adminService";
+import { fetchAppSettings } from "@/services/appSettingsService";
 
 type Props = {
   open: boolean;
@@ -21,6 +24,14 @@ type Props = {
 
 export function NewOrderDialog(props: Props) {
   const createMut = useCreateOrderMutation();
+  const pricingQ = useQuery({
+    queryKey: ["pricing_rules"],
+    queryFn: fetchPricingRules,
+  });
+  const settingsQ = useQuery({
+    queryKey: ["app_settings"],
+    queryFn: fetchAppSettings,
+  });
 
   const [cliente, setCliente] = useState("");
   const [kg, setKg] = useState("1");
@@ -31,8 +42,8 @@ export function NewOrderDialog(props: Props) {
   const kgNum = Number(kg.replace(",", "."));
   const precio = useMemo(() => {
     if (!Number.isFinite(kgNum) || kgNum <= 0) return null;
-    return suggestedPricePerKgMeta(kgNum);
-  }, [kgNum]);
+    return suggestedPricePerKgMeta(kgNum, pricingQ.data ?? [], settingsQ.data?.precio_base_por_kilo ?? null);
+  }, [kgNum, pricingQ.data, settingsQ.data?.precio_base_por_kilo]);
   const totalSugerido = precio !== null && Number.isFinite(kgNum) ? Math.round(kgNum * precio * 100) / 100 : null;
 
   const reset = () => {
@@ -55,8 +66,7 @@ export function NewOrderDialog(props: Props) {
         <DialogHeader>
           <DialogTitle>Nuevo pedido</DialogTitle>
           <DialogDescription>
-            Cliente, cantidad en kg de meta y fechas. Precio sugerido: &lt;3 kg 90.000/kg; ≥3 kg 80.000/kg; ≥6 kg
-            75.000/kg.
+            Cliente, cantidad en kg de meta y fechas. El precio sugerido se calcula con las reglas activas de Admin.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">

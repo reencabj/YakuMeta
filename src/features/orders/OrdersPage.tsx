@@ -179,9 +179,9 @@ export function OrdersPage() {
         <StatTile
           dense
           icon={Scale}
-          label="Kg pedidos abiertos"
+          label="Kg pedidos en curso"
           value={fmtKgDisplay(pedidosKpi.data?.total_pedidos_abiertos_kg, pedidosKpi.isLoading)}
-          unit="kg meta"
+          unit="kg pendientes"
           tone="slate"
         />
         <StatTile
@@ -199,7 +199,7 @@ export function OrdersPage() {
           icon={AlertTriangle}
           label="Falta preparar"
           value={fmtKgDisplay(pedidosKpi.data?.faltante_preparar_kg, pedidosKpi.isLoading)}
-          unit="kg meta"
+          unit="kg pendientes"
           tone="rose"
           emphasize
         />

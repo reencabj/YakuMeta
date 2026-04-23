@@ -130,6 +130,7 @@ export function useSetOrderKilosEntregadosAcumuladoMutation() {
     onSuccess: (_, v) => {
       void qc.invalidateQueries({ queryKey: ORDERS_KEY });
       void qc.invalidateQueries({ queryKey: ORDER_DETAIL(v.orderId) });
+      invalidatePedidosRelated(qc);
     },
   });
 }
