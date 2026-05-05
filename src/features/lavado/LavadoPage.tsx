@@ -143,7 +143,7 @@ export function LavadoPage() {
   const finishedAlertedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    const id = window.setInterval(() => setNow(Date.now()), 500);
     return () => window.clearInterval(id);
   }, []);
 
@@ -181,9 +181,9 @@ export function LavadoPage() {
   });
 
   const config = configQ.data;
-  const tandas = tandasQ.data ?? [];
-  const active = tandas.filter((t) => t.estado === "activo");
-  const history = tandas.filter((t) => t.estado !== "activo");
+  const tandas = useMemo(() => tandasQ.data ?? [], [tandasQ.data]);
+  const active = useMemo(() => tandas.filter((t) => t.estado === "activo"), [tandas]);
+  const history = useMemo(() => tandas.filter((t) => t.estado !== "activo"), [tandas]);
   const totalInProcess = active.reduce((acc, t) => acc + num(t.monto_entrada), 0);
   const totalOutEstimated = active.reduce((acc, t) => acc + num(t.monto_salida_esperado), 0);
   const nextToFinish = [...active].sort(
@@ -253,8 +253,15 @@ export function LavadoPage() {
         webhookUrl: webhook,
       });
     }
+  }, [active, appSettingsQ.data, profile]);
+
+  useEffect(() => {
+    if (!profile) return;
+    const webhook = (appSettingsQ.data as { discord_webhook_url?: string | null } | undefined)?.discord_webhook_url?.trim();
+    if (!webhook) return;
+    const nowMs = now;
     const dueByTimer = active.filter(
-      (t) => !t.webhook_notified_at && new Date(t.finaliza_estimado_at).getTime() <= now
+      (t) => !t.webhook_notified_at && new Date(t.finaliza_estimado_at).getTime() <= nowMs
     );
     for (const tanda of dueByTimer) {
       void sendLavadoDiscordWebhookFinished({

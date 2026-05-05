@@ -197,6 +197,11 @@ export async function sendLavadoDiscordWebhookStarted(input: { tanda: LavadoTand
 }
 
 export async function sendLavadoDiscordWebhookFinished(input: { tanda: LavadoTandaRow; username: string; webhookUrl: string }) {
+  const estimatedEndMs = new Date(input.tanda.finaliza_estimado_at).getTime();
+  if (Number.isFinite(estimatedEndMs) && Date.now() < estimatedEndMs) {
+    return;
+  }
+
   const { data: lockData, error: lockErr } = await supabase
     .from("lavado_tandas")
     .update({ webhook_locked_at: new Date().toISOString() })
