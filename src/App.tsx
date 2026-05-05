@@ -10,6 +10,7 @@ import { LoginPage } from "@/pages/LoginPage";
 import { HistoryPage } from "@/pages/HistoryPage";
 import { StatisticsPage } from "@/pages/StatisticsPage";
 import { AdminPage } from "@/features/admin/AdminPage";
+import { LavadoPage } from "@/features/lavado/LavadoPage";
 import { OrdersPage } from "@/features/orders/OrdersPage";
 import { StockPage } from "@/features/stock/StockPage";
 
@@ -69,6 +70,7 @@ function AppRoutes() {
         <Route path="stock" element={<StockPage />} />
         <Route path="estadisticas" element={<StatisticsPage />} />
         <Route path="historial" element={<HistoryPage />} />
+        <Route path="lavado" element={<LavadoPage />} />
         <Route path="admin" element={<AdminRoute />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

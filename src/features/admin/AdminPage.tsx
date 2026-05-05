@@ -631,6 +631,7 @@ function SettingsForm(props: {
   saving: boolean;
 }) {
   const [form, setForm] = useState(props.settings);
+  const [testingWebhook, setTestingWebhook] = useState(false);
 
   useEffect(() => {
     setForm(props.settings);
@@ -638,11 +639,55 @@ function SettingsForm(props: {
 
   if (props.loading) return <p className="text-sm text-muted-foreground">Cargando…</p>;
 
+  async function sendWebhookTest() {
+    const url = form.discord_webhook_url?.trim();
+    if (!url) {
+      window.alert("Primero configurá el Webhook Discord (Lavado).");
+      return;
+    }
+    setTestingWebhook(true);
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          embeds: [
+            {
+              title: "Test webhook Lavado",
+              description: "Mensaje de prueba enviado desde Admin > General.",
+              color: 10181046,
+              fields: [
+                { name: "Módulo", value: "Lavado", inline: true },
+                { name: "Estado", value: "Conectado", inline: true },
+                { name: "Hora", value: new Date().toLocaleString("es-AR"), inline: false },
+              ],
+              timestamp: new Date().toISOString(),
+            },
+          ],
+        }),
+      });
+      if (!res.ok) {
+        throw new Error(`Discord respondió ${res.status}`);
+      }
+      window.alert("Webhook OK: mensaje de prueba enviado.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Error desconocido";
+      window.alert(`No se pudo enviar el test webhook: ${msg}`);
+    } finally {
+      setTestingWebhook(false);
+    }
+  }
+
   return (
     <PanelCard icon={Settings} title="Configuración general" description="Constantes de negocio (fila única app_settings).">
       <div className="grid gap-4 md:grid-cols-2">
         <Field label="Nombre de la app" value={form.app_name} onChange={(v) => setForm((f) => ({ ...f, app_name: v }))} />
         <Field label="Moneda (código)" value={form.currency} onChange={(v) => setForm((f) => ({ ...f, currency: v }))} />
+        <Field
+          label="Webhook Discord (Lavado)"
+          value={form.discord_webhook_url ?? ""}
+          onChange={(v) => setForm((f) => ({ ...f, discord_webhook_url: v.trim() === "" ? null : v.trim() }))}
+        />
         <NumField
           label="Días duración meta por defecto"
           value={form.dias_duracion_meta_por_defecto}
@@ -708,7 +753,10 @@ function SettingsForm(props: {
           Permitir entrega sin stock
         </label>
       </div>
-      <div className="mt-4 flex justify-end">
+      <div className="mt-4 flex flex-wrap justify-end gap-2">
+        <Button type="button" variant="outline" disabled={testingWebhook} onClick={() => void sendWebhookTest()}>
+          {testingWebhook ? "Enviando test…" : "Enviar test webhook"}
+        </Button>
         <Button type="button" disabled={props.saving} onClick={() => props.onSave(form)}>
           {props.saving ? "Guardando…" : "Guardar cambios"}
         </Button>

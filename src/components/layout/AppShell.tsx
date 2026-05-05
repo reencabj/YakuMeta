@@ -7,6 +7,7 @@ import {
   Settings,
   BarChart3,
   ScrollText,
+  Waves,
   LogOut,
 } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
@@ -24,6 +25,7 @@ const nav = [
   { to: "/stock", label: "Stock", icon: Package },
   { to: "/estadisticas", label: "Estadísticas", icon: BarChart3 },
   { to: "/historial", label: "Historial", icon: ScrollText },
+  { to: "/lavado", label: "Lavado", icon: Waves },
   { to: "/admin", label: "Admin", icon: Settings, adminOnly: true },
 ];
 

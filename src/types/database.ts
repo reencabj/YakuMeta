@@ -72,6 +72,7 @@ export interface Database {
           alerta_meta_dias_normal_hasta: number;
           alerta_meta_dias_warning_hasta: number;
           alerta_meta_dias_vencido_desde: number;
+          discord_webhook_url: string | null;
           is_active: boolean;
           created_at: string;
           updated_at: string;
@@ -379,6 +380,77 @@ export interface Database {
           orden?: number | null;
         };
         Update: Partial<Pick<Database["public"]["Tables"]["storage_group_members"]["Insert"], "orden">>;
+      };
+      lavado_config: {
+        Row: {
+          id: number;
+          perdida_proceso_1: number;
+          perdida_proceso_2: number;
+          perdida_proceso_3: number;
+          perdida_proceso_4: number;
+          min_proceso_1: number;
+          max_proceso_1: number;
+          min_proceso_2: number;
+          max_proceso_2: number;
+          min_proceso_3: number;
+          max_proceso_3: number;
+          min_proceso_4: number;
+          max_proceso_4: number;
+          duracion_base_p1_minutos: number;
+          duracion_base_p3_minutos: number;
+          duracion_manual_p2_segundos: number;
+          duracion_manual_p4_segundos: number;
+          estaciones_p1: number;
+          estaciones_p2: number;
+          estaciones_p3: number;
+          estaciones_p4: number;
+          discord_webhook_url: string | null;
+          created_at: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: Record<string, never>;
+        Update: Partial<Omit<Database["public"]["Tables"]["lavado_config"]["Row"], "id" | "created_at">>;
+      };
+      lavado_tandas: {
+        Row: {
+          id: string;
+          usuario_id: string;
+          proceso: "imprimir" | "cortar" | "secar" | "contar";
+          monto_entrada: number;
+          monto_salida_esperado: number;
+          estacion: number;
+          iniciado_at: string;
+          finaliza_estimado_at: string;
+          estado: "activo" | "completado" | "cancelado";
+          finalizado_at: string | null;
+          webhook_locked_at: string | null;
+          webhook_started_notified_at: string | null;
+          webhook_notified_at: string | null;
+          created_at: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          usuario_id: string;
+          proceso: "imprimir" | "cortar" | "secar" | "contar";
+          monto_entrada: number;
+          monto_salida_esperado: number;
+          estacion: number;
+          finaliza_estimado_at: string;
+          estado?: "activo" | "completado" | "cancelado";
+        };
+        Update: Partial<
+          Pick<
+            Database["public"]["Tables"]["lavado_tandas"]["Row"],
+            | "estado"
+            | "finalizado_at"
+            | "webhook_locked_at"
+            | "webhook_started_notified_at"
+            | "webhook_notified_at"
+            | "updated_by"
+          >
+        >;
       };
     };
     Views: {
