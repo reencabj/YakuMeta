@@ -4,6 +4,8 @@ import type { Database, Json } from "@/types/database";
 export type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
 export type PricingRuleRow = Database["public"]["Tables"]["pricing_rules"]["Row"];
 export type LocationTypeRow = Database["public"]["Tables"]["storage_location_types"]["Row"];
+export type VipClientRow = Database["public"]["Tables"]["vip_clients"]["Row"];
+export type VipClientProfileOption = Pick<ProfileRow, "id" | "username" | "display_name" | "is_active">;
 
 export async function fetchProfilesForAdmin(): Promise<ProfileRow[]> {
   const { data, error } = await supabase.from("profiles").select("*").order("username");
@@ -21,9 +23,47 @@ export async function updateProfileAdmin(
 }
 
 export async function fetchPricingRules(): Promise<PricingRuleRow[]> {
-  const { data, error } = await supabase.from("pricing_rules").select("*").order("prioridad", { ascending: true });
+  const { data, error } = await supabase
+    .from("pricing_rules")
+    .select("*")
+    .order("tipo_cliente", { ascending: true })
+    .order("tipo_pago", { ascending: true })
+    .order("cantidad_minima_kilos", { ascending: false })
+    .order("prioridad", { ascending: false });
   if (error) throw error;
   return data ?? [];
+}
+
+export async function fetchVipClients(includeInactive = false): Promise<VipClientRow[]> {
+  let q = supabase.from("vip_clients").select("*").order("nombre");
+  if (!includeInactive) q = q.eq("is_active", true);
+  const { data, error } = await q;
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function fetchVipClientProfiles(): Promise<VipClientProfileOption[]> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, username, display_name, is_active")
+    .eq("role", "cliente_vip")
+    .eq("is_active", true)
+    .order("display_name", { ascending: true })
+    .order("username", { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function insertVipClient(row: Database["public"]["Tables"]["vip_clients"]["Insert"]) {
+  const { data, error } = await supabase.from("vip_clients").insert(row).select("*").single();
+  if (error) throw error;
+  return data as VipClientRow;
+}
+
+export async function updateVipClient(id: string, patch: Database["public"]["Tables"]["vip_clients"]["Update"]) {
+  const { data, error } = await supabase.from("vip_clients").update(patch).eq("id", id).select("*").single();
+  if (error) throw error;
+  return data as VipClientRow;
 }
 
 export async function insertPricingRule(row: Database["public"]["Tables"]["pricing_rules"]["Insert"]) {
@@ -92,7 +132,7 @@ type InviteUserBody = {
   email: string;
   username: string;
   display_name?: string | null;
-  role?: "admin" | "user" | "cliente";
+  role?: Database["public"]["Tables"]["profiles"]["Row"]["role"];
 };
 
 export async function inviteUserViaEdge(body: InviteUserBody): Promise<{ ok: true; user_id: string }> {
@@ -120,6 +160,7 @@ export async function inviteUserViaEdge(body: InviteUserBody): Promise<{ ok: tru
       invalid_email: "Email no válido.",
       invalid_username:
         "Usuario no válido: entre 2 y 48 caracteres, minúsculas, números, punto, guión o guión bajo.",
+      invalid_role: "Rol no válido.",
       email_already_registered: "Ese email ya está registrado en perfiles.",
       username_taken: "Ese nombre de usuario ya existe.",
       email_already_in_auth: json.message ?? "El email ya existe en Auth.",

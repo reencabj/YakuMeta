@@ -16,7 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useOrderDetailQuery, useUpdateOrderMutation } from "@/hooks/useOrders";
 import { BOLSAS_PER_KG_META } from "@/lib/meta-bags";
 import { cn } from "@/lib/utils";
-import type { OrderState } from "@/types/database";
+import type { CustomerType, OrderState, PaymentType } from "@/types/database";
 import type { OrderWithCreator } from "@/services/orderService";
 import { ACTIVE_ORDER_STATES, estadoBadgeClass, normalizaPrioridad, OrderPriorityStars } from "./orderUtils";
 
@@ -25,6 +25,14 @@ const selectClass = cn(
 );
 
 const ESTADO_EDITABLE: OrderState[] = ["pendiente", "en_preparacion", "cancelado"];
+
+function tipoClienteLabel(value: CustomerType) {
+  return value === "vip" ? "VIP" : "Normal";
+}
+
+function tipoPagoLabel(value: PaymentType) {
+  return value === "negro" ? "Dinero negro" : "Dinero blanco";
+}
 
 type Props = {
   open: boolean;
@@ -51,6 +59,8 @@ export function OrderDetailDialog(props: Props) {
   const [notas, setNotas] = useState("");
   const [prioridad, setPrioridad] = useState<string>("0");
   const [estado, setEstado] = useState<OrderState>("pendiente");
+  const [tipoCliente, setTipoCliente] = useState<CustomerType>("normal");
+  const [tipoPago, setTipoPago] = useState<PaymentType>("blanco");
   const [ppk, setPpk] = useState("");
   const [total, setTotal] = useState("");
 
@@ -63,6 +73,8 @@ export function OrderDetailDialog(props: Props) {
     setNotas(o.notas ?? "");
     setPrioridad(String(normalizaPrioridad(o.prioridad)));
     setEstado(o.estado);
+    setTipoCliente(o.tipo_cliente);
+    setTipoPago(o.tipo_pago);
     setPpk(o.precio_sugerido_por_kilo != null ? String(Number(o.precio_sugerido_por_kilo)) : "");
     setTotal(o.total_sugerido != null ? String(Number(o.total_sugerido)) : "");
   }, [o?.id, props.open, o]);
@@ -85,6 +97,8 @@ export function OrderDetailDialog(props: Props) {
         notas: notas.trim() ? notas.trim() : null,
         prioridad: prioridadVal,
         estado,
+        tipo_cliente: tipoCliente,
+        tipo_pago: tipoPago,
         precio_sugerido_por_kilo: ppkN != null && Number.isFinite(ppkN) ? ppkN : null,
         total_sugerido: totN != null && Number.isFinite(totN) ? totN : null,
       },
@@ -120,6 +134,19 @@ export function OrderDetailDialog(props: Props) {
                   · encargo {formatIsoSafe(o.fecha_encargo, "dd/MM/yyyy", { locale: es })}
                 </span>
               ) : null}
+              <span
+                className={cn(
+                  "rounded-md border px-2 py-0.5 text-xs",
+                  o.tipo_cliente === "vip"
+                    ? "border-primary/45 bg-primary/15 text-foreground"
+                    : "border-border/70 bg-muted/20 text-muted-foreground"
+                )}
+              >
+                {tipoClienteLabel(o.tipo_cliente)}
+              </span>
+              <span className="rounded-md border border-border/70 bg-muted/20 px-2 py-0.5 text-xs text-muted-foreground">
+                {tipoPagoLabel(o.tipo_pago)}
+              </span>
             </div>
 
             {!readOnly ? (
@@ -148,6 +175,30 @@ export function OrderDetailDialog(props: Props) {
                       <option value="0">Sin prioridad</option>
                       <option value="1">Prioridad 1</option>
                       <option value="2">Prioridad 2</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="tipo-cliente-detail">Tipo de cliente</Label>
+                    <select
+                      id="tipo-cliente-detail"
+                      className={selectClass}
+                      value={tipoCliente}
+                      onChange={(e) => setTipoCliente(e.target.value as CustomerType)}
+                    >
+                      <option value="normal">Normal</option>
+                      <option value="vip">VIP</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="tipo-pago-detail">Tipo de pago</Label>
+                    <select
+                      id="tipo-pago-detail"
+                      className={selectClass}
+                      value={tipoPago}
+                      onChange={(e) => setTipoPago(e.target.value as PaymentType)}
+                    >
+                      <option value="blanco">Dinero en blanco</option>
+                      <option value="negro">Dinero en negro</option>
                     </select>
                   </div>
                   <div className="space-y-1">
@@ -212,6 +263,12 @@ export function OrderDetailDialog(props: Props) {
                     {o.precio_sugerido_por_kilo != null
                       ? `$${Number(o.precio_sugerido_por_kilo).toLocaleString("es-AR")}/kg`
                       : "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase text-muted-foreground">Cliente / pago</p>
+                  <p>
+                    {tipoClienteLabel(o.tipo_cliente)} · {tipoPagoLabel(o.tipo_pago)}
                   </p>
                 </div>
                 <div>

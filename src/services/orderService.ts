@@ -219,6 +219,9 @@ export async function createOrder(input: {
   notas: string | null;
   /** Por defecto `admin` (panel interno). El portal de clientes debe pasar `portal_clientes`. */
   origen_pedido?: OrderOrigenPedido;
+  tipo_cliente?: Database["public"]["Tables"]["orders"]["Row"]["tipo_cliente"];
+  tipo_pago?: Database["public"]["Tables"]["orders"]["Row"]["tipo_pago"];
+  vip_client_id?: string | null;
 }): Promise<string> {
   const { data, error } = await supabase.rpc("create_order", {
     p_cliente_nombre: input.cliente_nombre,
@@ -227,6 +230,9 @@ export async function createOrder(input: {
     p_fecha_encargo: input.fecha_encargo,
     p_notas: input.notas,
     p_origen_pedido: input.origen_pedido ?? "admin",
+    p_tipo_cliente: input.tipo_cliente ?? "normal",
+    p_tipo_pago: input.tipo_pago ?? "blanco",
+    p_vip_client_id: input.vip_client_id ?? null,
   });
   if (error) throw error;
   const orderId = data as string;
@@ -272,6 +278,9 @@ export async function updateOrderPatch(
     prioridad: number | null;
     precio_sugerido_por_kilo: number | null;
     total_sugerido: number | null;
+    tipo_cliente: Database["public"]["Tables"]["orders"]["Row"]["tipo_cliente"];
+    tipo_pago: Database["public"]["Tables"]["orders"]["Row"]["tipo_pago"];
+    vip_client_id: string | null;
   }>
 ): Promise<void> {
   const { error } = await supabase.from("orders").update(patch).eq("id", orderId);

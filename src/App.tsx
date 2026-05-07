@@ -35,7 +35,7 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 
 function StaffAppGate({ children }: { children: ReactNode }) {
   const { profile } = useAuth();
-  if (profile?.role === "cliente") {
+  if (profile?.role === "cliente" || profile?.role === "cliente_vip") {
     return <ClientePortalOnlyPage />;
   }
   return children;

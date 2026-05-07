@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export function ClientePortalOnlyPage() {
-  const { signOut, user } = useAuth();
+  const { profile, signOut, user } = useAuth();
   const portalUrl = import.meta.env.VITE_PORTAL_URL?.trim();
+  const isVip = profile?.role === "cliente_vip";
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
@@ -13,7 +14,7 @@ export function ClientePortalOnlyPage() {
         <CardHeader>
           <CardTitle>Acceso solo en el portal</CardTitle>
           <CardDescription>
-            Tu cuenta es de cliente: no tenés acceso al panel interno. Los pedidos se cargan en la app de pedidos.
+            Tu cuenta es de cliente{isVip ? " VIP" : ""}: no tenés acceso al panel interno. Los pedidos se cargan en la app de pedidos.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">

@@ -14,16 +14,20 @@ import {
   adminSystemSnapshot,
   fetchPricingRules,
   fetchProfilesForAdmin,
+  fetchVipClients,
   insertCustomLocationType,
   insertPricingRule,
+  insertVipClient,
   updateCustomLocationType,
   updatePricingRule,
+  updateVipClient,
   deletePricingRule,
   updateProfileAdmin,
   inviteUserViaEdge,
   type LocationTypeRow,
   type PricingRuleRow,
   type ProfileRow,
+  type VipClientRow,
 } from "@/services/adminService";
 import { fetchAppSettings, updateAppSettings, type AppSettingsRow } from "@/services/appSettingsService";
 import { authRecoveryRedirectUrl, supabase } from "@/lib/supabase";
@@ -34,10 +38,10 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { Database, UserRole } from "@/types/database";
+import type { CustomerType, Database, PaymentType, UserRole } from "@/types/database";
 import { cn } from "@/lib/utils";
 
-type Tab = "users" | "types" | "settings" | "pricing" | "groups" | "maintenance";
+type Tab = "users" | "vip" | "types" | "settings" | "pricing" | "groups" | "maintenance";
 
 export function AdminPage() {
   const [tab, setTab] = useState<Tab>("users");
@@ -67,6 +71,11 @@ export function AdminPage() {
     queryFn: fetchPricingRules,
   });
 
+  const vipClientsQ = useQuery({
+    queryKey: ["vip_clients", "admin"],
+    queryFn: () => fetchVipClients(true),
+  });
+
   const groupsQ = useQuery({
     queryKey: ["v_storage_group_metrics"],
     queryFn: async () => {
@@ -91,7 +100,11 @@ export function AdminPage() {
   const [newTypeName, setNewTypeName] = useState("");
   const [editRule, setEditRule] = useState<PricingRuleRow | null>(null);
   const [newRuleOpen, setNewRuleOpen] = useState(false);
+  const [editVipClient, setEditVipClient] = useState<VipClientRow | null>(null);
+  const [newVipClientOpen, setNewVipClientOpen] = useState(false);
   const [sampleKg, setSampleKg] = useState("10");
+  const [sampleTipoCliente, setSampleTipoCliente] = useState<CustomerType>("normal");
+  const [sampleTipoPago, setSampleTipoPago] = useState<PaymentType>("blanco");
 
   const updateProfileM = useMutation({
     mutationFn: (p: { id: string; patch: Parameters<typeof updateProfileAdmin>[1] }) => updateProfileAdmin(p.id, p.patch),
@@ -153,10 +166,31 @@ export function AdminPage() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["pricing_rules"] }),
   });
 
+  const insertVipClientM = useMutation({
+    mutationFn: (row: Database["public"]["Tables"]["vip_clients"]["Insert"]) => insertVipClient(row),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["vip_clients"] });
+    },
+  });
+
+  const updateVipClientM = useMutation({
+    mutationFn: (p: { id: string; patch: Database["public"]["Tables"]["vip_clients"]["Update"] }) =>
+      updateVipClient(p.id, p.patch),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["vip_clients"] });
+    },
+  });
+
   const settings = settingsQ.data;
   const rules = pricingQ.data ?? [];
   const sample = Number(sampleKg) || 0;
-  const sug = suggestedPricePerKgMeta(sample, rules, settings?.precio_base_por_kilo ?? null);
+  const sug = suggestedPricePerKgMeta(
+    sample,
+    rules,
+    settings?.precio_base_por_kilo ?? null,
+    sampleTipoCliente,
+    sampleTipoPago
+  );
 
   return (
     <PageShell>
@@ -171,6 +205,7 @@ export function AdminPage() {
         onChange={(v) => setTab(v as Tab)}
         options={[
           { value: "users", label: "Usuarios" },
+          { value: "vip", label: "Clientes VIP" },
           { value: "types", label: "Tipos depósito" },
           { value: "settings", label: "General" },
           { value: "pricing", label: "Precios" },
@@ -214,7 +249,7 @@ export function AdminPage() {
                         "rounded-md px-2 py-0.5 text-xs",
                         p.role === "admin"
                           ? "bg-primary/20 text-primary"
-                          : p.role === "cliente"
+                          : p.role === "cliente" || p.role === "cliente_vip"
                             ? "bg-secondary/80 text-secondary-foreground"
                             : "bg-muted text-muted-foreground"
                       )}
@@ -275,6 +310,7 @@ export function AdminPage() {
                     <option value="user">user (staff)</option>
                     <option value="admin">admin</option>
                     <option value="cliente">cliente (portal pedidos)</option>
+                    <option value="cliente_vip">cliente VIP (portal pedidos)</option>
                   </select>
                 </div>
                 <DialogFooter>
@@ -294,6 +330,88 @@ export function AdminPage() {
                   </Button>
                 </DialogFooter>
               </div>
+            </DialogContent>
+          </Dialog>
+        </PanelCard>
+      ) : null}
+
+      {tab === "vip" ? (
+        <PanelCard
+          icon={Users}
+          title="Clientes VIP"
+          description="Catálogo rápido para seleccionar clientes VIP al crear pedidos desde el panel interno."
+          headerExtra={
+            <Button type="button" size="sm" onClick={() => setNewVipClientOpen(true)}>
+              Nuevo VIP
+            </Button>
+          }
+        >
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Nombre</TableHead>
+                <TableHead>Notas</TableHead>
+                <TableHead>Activo</TableHead>
+                <TableHead>Creado</TableHead>
+                <TableHead />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(vipClientsQ.data ?? []).map((c) => (
+                <TableRow key={c.id}>
+                  <TableCell className="font-medium">{c.nombre}</TableCell>
+                  <TableCell className="max-w-[320px] truncate text-xs text-muted-foreground">{c.notas ?? "—"}</TableCell>
+                  <TableCell>{c.is_active ? "sí" : "no"}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{formatDate(c.created_at)}</TableCell>
+                  <TableCell className="space-x-2">
+                    <Button type="button" variant="outline" size="sm" onClick={() => setEditVipClient(c)}>
+                      Editar
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => updateVipClientM.mutate({ id: c.id, patch: { is_active: !c.is_active } })}
+                    >
+                      {c.is_active ? "Desactivar" : "Activar"}
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+
+          <Dialog open={newVipClientOpen} onOpenChange={setNewVipClientOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Nuevo cliente VIP</DialogTitle>
+              </DialogHeader>
+              <VipClientFormBody
+                key="new-vip-client"
+                initial={null}
+                onSubmit={(row) => {
+                  insertVipClientM.mutate(row as Database["public"]["Tables"]["vip_clients"]["Insert"]);
+                  setNewVipClientOpen(false);
+                }}
+              />
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={!!editVipClient} onOpenChange={(o) => !o && setEditVipClient(null)}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Editar cliente VIP</DialogTitle>
+              </DialogHeader>
+              {editVipClient ? (
+                <VipClientFormBody
+                  key={editVipClient.id}
+                  initial={editVipClient}
+                  onSubmit={(row) => {
+                    updateVipClientM.mutate({ id: editVipClient.id, patch: row });
+                    setEditVipClient(null);
+                  }}
+                />
+              ) : null}
             </DialogContent>
           </Dialog>
         </PanelCard>
@@ -385,6 +503,28 @@ export function AdminPage() {
                 <Label className="text-xs">Kilos meta de referencia</Label>
                 <Input className="h-9 w-40" value={sampleKg} onChange={(e) => setSampleKg(e.target.value)} type="number" min={0} step={0.1} />
               </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Tipo de cliente</Label>
+                <select
+                  className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                  value={sampleTipoCliente}
+                  onChange={(e) => setSampleTipoCliente(e.target.value as CustomerType)}
+                >
+                  <option value="normal">Normal</option>
+                  <option value="vip">VIP</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Tipo de pago</Label>
+                <select
+                  className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                  value={sampleTipoPago}
+                  onChange={(e) => setSampleTipoPago(e.target.value as PaymentType)}
+                >
+                  <option value="blanco">Dinero en blanco</option>
+                  <option value="negro">Dinero en negro</option>
+                </select>
+              </div>
               <div className="rounded-xl border border-border/60 bg-muted/30 px-4 py-3">
                 <p className="text-xs uppercase text-muted-foreground">Precio / kg sugerido</p>
                 <p className="text-2xl font-semibold tabular-nums">
@@ -408,6 +548,8 @@ export function AdminPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Nombre</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead>Pago</TableHead>
                   <TableHead className="text-right">Mín. kg</TableHead>
                   <TableHead className="text-right">$/kg</TableHead>
                   <TableHead className="text-right">Prioridad</TableHead>
@@ -419,6 +561,8 @@ export function AdminPage() {
                 {rules.map((r) => (
                   <TableRow key={r.id}>
                     <TableCell>{r.nombre}</TableCell>
+                    <TableCell>{r.tipo_cliente === "vip" ? "VIP" : "Normal"}</TableCell>
+                    <TableCell>{r.tipo_pago === "negro" ? "Negro" : "Blanco"}</TableCell>
                     <TableCell className="text-right tabular-nums">{r.cantidad_minima_kilos}</TableCell>
                     <TableCell className="text-right tabular-nums">{r.precio_por_kilo}</TableCell>
                     <TableCell className="text-right tabular-nums">{r.prioridad}</TableCell>
@@ -591,6 +735,7 @@ function ProfileEditForm(props: {
           <option value="user">user (staff)</option>
           <option value="admin">admin</option>
           <option value="cliente">cliente (portal)</option>
+          <option value="cliente_vip">cliente VIP (portal)</option>
         </select>
       </div>
       <label className="flex items-center gap-2 text-sm">
@@ -803,6 +948,8 @@ function PricingRuleFormBody(props: {
   onSubmit: (row: Database["public"]["Tables"]["pricing_rules"]["Insert"] | Database["public"]["Tables"]["pricing_rules"]["Update"]) => void;
 }) {
   const [nombre, setNombre] = useState(props.initial?.nombre ?? "");
+  const [tipoCliente, setTipoCliente] = useState<CustomerType>(props.initial?.tipo_cliente ?? "normal");
+  const [tipoPago, setTipoPago] = useState<PaymentType>(props.initial?.tipo_pago ?? "blanco");
   const [minKg, setMinKg] = useState(String(props.initial?.cantidad_minima_kilos ?? 0));
   const [precio, setPrecio] = useState(String(props.initial?.precio_por_kilo ?? 0));
   const [prioridad, setPrioridad] = useState(String(props.initial?.prioridad ?? 0));
@@ -813,6 +960,30 @@ function PricingRuleFormBody(props: {
       <div className="space-y-1">
         <Label>Nombre</Label>
         <Input value={nombre} onChange={(e) => setNombre(e.target.value)} />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1">
+          <Label>Tipo cliente</Label>
+          <select
+            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+            value={tipoCliente}
+            onChange={(e) => setTipoCliente(e.target.value as CustomerType)}
+          >
+            <option value="normal">Normal</option>
+            <option value="vip">VIP</option>
+          </select>
+        </div>
+        <div className="space-y-1">
+          <Label>Tipo pago</Label>
+          <select
+            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+            value={tipoPago}
+            onChange={(e) => setTipoPago(e.target.value as PaymentType)}
+          >
+            <option value="blanco">Dinero en blanco</option>
+            <option value="negro">Dinero en negro</option>
+          </select>
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
@@ -838,10 +1009,53 @@ function PricingRuleFormBody(props: {
           onClick={() =>
             props.onSubmit({
               nombre: nombre.trim(),
+              tipo_cliente: tipoCliente,
+              tipo_pago: tipoPago,
               cantidad_minima_kilos: Number(minKg),
               precio_por_kilo: Number(precio),
               prioridad: Number(prioridad),
               is_active: activa,
+            })
+          }
+        >
+          Guardar
+        </Button>
+      </DialogFooter>
+    </div>
+  );
+}
+
+function VipClientFormBody(props: {
+  initial: VipClientRow | null;
+  onSubmit: (row: Database["public"]["Tables"]["vip_clients"]["Insert"] | Database["public"]["Tables"]["vip_clients"]["Update"]) => void;
+}) {
+  const [nombre, setNombre] = useState(props.initial?.nombre ?? "");
+  const [notas, setNotas] = useState(props.initial?.notas ?? "");
+  const [active, setActive] = useState(props.initial?.is_active ?? true);
+
+  return (
+    <div className="grid gap-3 py-2">
+      <div className="space-y-1">
+        <Label>Nombre</Label>
+        <Input value={nombre} onChange={(e) => setNombre(e.target.value)} />
+      </div>
+      <div className="space-y-1">
+        <Label>Notas</Label>
+        <Input value={notas} onChange={(e) => setNotas(e.target.value)} />
+      </div>
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
+        Activo
+      </label>
+      <DialogFooter>
+        <Button
+          type="button"
+          disabled={!nombre.trim()}
+          onClick={() =>
+            props.onSubmit({
+              nombre: nombre.trim(),
+              notas: notas.trim() ? notas.trim() : null,
+              is_active: active,
             })
           }
         >

@@ -70,8 +70,11 @@ Deno.serve(async (req) => {
     const username = (body.username ?? "").trim().toLowerCase();
     const displayName = body.display_name?.trim() ? body.display_name.trim() : null;
     const roleRaw = (body.role ?? "user").trim().toLowerCase();
-    const role: "admin" | "user" | "cliente" =
-      roleRaw === "admin" ? "admin" : roleRaw === "cliente" ? "cliente" : "user";
+    const allowedRoles = ["admin", "user", "cliente", "cliente_vip"] as const;
+    if (!allowedRoles.includes(roleRaw as (typeof allowedRoles)[number])) {
+      return new Response(JSON.stringify({ error: "invalid_role" }), { status: 400, headers });
+    }
+    const role = roleRaw as (typeof allowedRoles)[number];
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return new Response(JSON.stringify({ error: "invalid_email" }), { status: 400, headers });

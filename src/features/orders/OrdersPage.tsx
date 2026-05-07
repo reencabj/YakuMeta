@@ -56,6 +56,14 @@ import { Label } from "@/components/ui/label";
 
 const ESTADOS: (OrderState | "all")[] = ["all", "pendiente", "en_preparacion", "entregado", "cancelado"];
 
+function tipoClienteLabel(value: OrderWithCreator["tipo_cliente"]) {
+  return value === "vip" ? "VIP" : "Normal";
+}
+
+function tipoPagoLabel(value: OrderWithCreator["tipo_pago"]) {
+  return value === "negro" ? "Dinero negro" : "Dinero blanco";
+}
+
 export function OrdersPage() {
   const ordersQ = useOrdersQuery();
   const pedidosKpi = usePedidosKpiQuery();
@@ -325,6 +333,19 @@ export function OrdersPage() {
                               FIFO
                             </span>
                           ) : null}
+                          <span
+                            className={cn(
+                              "rounded-md border px-1.5 py-0.5 text-[9px] uppercase",
+                              o.tipo_cliente === "vip"
+                                ? "border-primary/45 bg-primary/15 text-foreground"
+                                : "border-border/70 bg-muted/20 text-muted-foreground"
+                            )}
+                          >
+                            {tipoClienteLabel(o.tipo_cliente)}
+                          </span>
+                          <span className="rounded-md border border-border/70 bg-muted/20 px-1.5 py-0.5 text-[9px] uppercase text-muted-foreground">
+                            {tipoPagoLabel(o.tipo_pago)}
+                          </span>
                         </div>
                         <PartialDeliveryKgControl order={o} />
                         <div className="rounded-lg border border-border/45 bg-muted/10 px-2.5 py-1.5">
@@ -457,6 +478,12 @@ export function OrdersPage() {
                           )}
                         >
                           {o.estado.replace(/_/g, " ")}
+                        </span>
+                        <span className="shrink-0 rounded border border-border/70 bg-muted/20 px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
+                          {tipoClienteLabel(o.tipo_cliente)}
+                        </span>
+                        <span className="shrink-0 rounded border border-border/70 bg-muted/20 px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
+                          {tipoPagoLabel(o.tipo_pago)}
                         </span>
                         <span className="shrink-0 tabular-nums text-muted-foreground">
                           <span className="font-mono text-foreground">{Number(o.cantidad_meta_kilos).toFixed(2)} kg</span>

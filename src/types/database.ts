@@ -6,9 +6,12 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[];
 
-export type UserRole = "admin" | "user" | "cliente";
+export type UserRole = "admin" | "user" | "cliente" | "cliente_vip";
 
 export type OrderState = "pendiente" | "en_preparacion" | "entregado" | "cancelado";
+
+export type CustomerType = "normal" | "vip";
+export type PaymentType = "blanco" | "negro";
 
 export type BatchState =
   | "disponible"
@@ -207,6 +210,9 @@ export interface Database {
           cobrado_recibio_dinero_usuario_id: string | null;
           cobrado_monto: number | null;
           origen_pedido: "admin" | "portal_clientes";
+          tipo_cliente: CustomerType;
+          tipo_pago: PaymentType;
+          vip_client_id: string | null;
           created_at: string;
           updated_at: string;
           updated_by: string | null;
@@ -228,6 +234,9 @@ export interface Database {
           cobrado_recibio_dinero_usuario_id?: string | null;
           cobrado_monto?: number | null;
           origen_pedido?: "admin" | "portal_clientes";
+          tipo_cliente?: CustomerType;
+          tipo_pago?: PaymentType;
+          vip_client_id?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["orders"]["Insert"]>;
       };
@@ -306,6 +315,8 @@ export interface Database {
           cantidad_minima_kilos: number;
           precio_por_kilo: number;
           prioridad: number;
+          tipo_cliente: CustomerType;
+          tipo_pago: PaymentType;
           is_active: boolean;
           created_at: string;
           updated_at: string;
@@ -317,9 +328,31 @@ export interface Database {
           cantidad_minima_kilos: number;
           precio_por_kilo: number;
           prioridad?: number;
+          tipo_cliente?: CustomerType;
+          tipo_pago?: PaymentType;
           is_active?: boolean;
         };
         Update: Partial<Database["public"]["Tables"]["pricing_rules"]["Insert"]>;
+      };
+      vip_clients: {
+        Row: {
+          id: string;
+          nombre: string;
+          notas: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+          created_by: string | null;
+          updated_by: string | null;
+        };
+        Insert: {
+          nombre: string;
+          notas?: string | null;
+          is_active?: boolean;
+          created_by?: string | null;
+          updated_by?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["vip_clients"]["Insert"]>;
       };
       audit_logs: {
         Row: {
@@ -595,6 +628,9 @@ export interface Database {
           p_fecha_encargo: string | null;
           p_notas: string | null;
           p_origen_pedido?: "admin" | "portal_clientes";
+          p_tipo_cliente?: CustomerType;
+          p_tipo_pago?: PaymentType;
+          p_vip_client_id?: string | null;
         };
         Returns: string;
       };
