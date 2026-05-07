@@ -140,6 +140,7 @@ export function LavadoPage() {
   const [dryAmount, setDryAmount] = useState("100000");
   const [dryStation, setDryStation] = useState("1");
   const [calcAmount, setCalcAmount] = useState("100000");
+  const [calcMode, setCalcMode] = useState<"pipeline" | "sequential">("pipeline");
   const finishedAlertedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -293,12 +294,12 @@ export function LavadoPage() {
         />
       </section>
 
-      <section className="grid min-h-0 gap-3 xl:grid-cols-2 xl:auto-rows-fr">
+      <section className="grid min-h-0 gap-3 xl:grid-cols-2">
       <PanelCard
         icon={PlayCircle}
         title="Nueva tanda"
         description="Procesos con duración: imprimir y secar."
-        className="min-h-0 overflow-hidden"
+        className="self-start overflow-hidden"
       >
         <div className="grid gap-3 xl:grid-cols-2">
           <div className="rounded-xl border border-border/60 bg-muted/15 p-3">
@@ -373,9 +374,9 @@ export function LavadoPage() {
         icon={Clock3}
         title="Tandas activas"
         description="Cronómetro en tiempo real por tanda."
-        className="min-h-0 overflow-hidden"
+        className="self-start overflow-hidden"
       >
-        <div className="max-h-[260px] overflow-auto">
+        <div className="max-h-[220px] overflow-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -435,20 +436,70 @@ export function LavadoPage() {
         description="Pérdidas encadenadas y tiempo estimado."
         className="min-h-0 overflow-hidden"
       >
-        <div className="grid gap-3 md:grid-cols-3">
-          <FieldInput label="Monto inicial" value={calcAmount} onChange={setCalcAmount} />
-          <div className="rounded-xl border border-border/60 bg-muted/25 p-3 text-sm">
-            <p>Final limpio: ${money(calc?.finalAmount ?? 0)}</p>
-            <p>Pérdida total: ${money(calc?.totalLoss ?? 0)}</p>
-            <p>Pérdida %: {((calc?.totalLossPct ?? 0) || 0).toFixed(2)}%</p>
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div className="w-full max-w-xs">
+            <FieldInput label="Monto inicial" value={calcAmount} onChange={setCalcAmount} />
           </div>
-          <div className="rounded-xl border border-border/60 bg-muted/25 p-3 text-sm">
-            <p>Rendimiento final: {(calc?.finalPct ?? 0).toFixed(2)}%</p>
-            <p>Tiempo total: {formatDuration(calc?.totalSeconds ?? 0)}</p>
-            <p>Cuello de botella: {calc?.bottleneck?.nombre ?? "—"}</p>
+          <div className="inline-flex rounded-md border border-border/60 bg-muted/20 p-1 text-xs">
+            <button
+              type="button"
+              onClick={() => setCalcMode("pipeline")}
+              className={cn(
+                "rounded px-2 py-1 transition-colors",
+                calcMode === "pipeline" ? "bg-primary/25 text-foreground" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Pipeline
+            </button>
+            <button
+              type="button"
+              onClick={() => setCalcMode("sequential")}
+              className={cn(
+                "rounded px-2 py-1 transition-colors",
+                calcMode === "sequential" ? "bg-primary/25 text-foreground" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Secuencial
+            </button>
           </div>
         </div>
-        <div className="mt-3 max-h-[175px] overflow-auto">
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="rounded-xl border border-border/60 bg-muted/25 p-3 text-sm leading-relaxed">
+            <p className="flex items-center justify-between gap-3">
+              <span className="text-muted-foreground">Final limpio</span>
+              <span className="whitespace-nowrap">${money(calc?.finalAmount ?? 0)}</span>
+            </p>
+            <p className="flex items-center justify-between gap-3">
+              <span className="text-muted-foreground">Pérdida total</span>
+              <span className="whitespace-nowrap">${money(calc?.totalLoss ?? 0)}</span>
+            </p>
+            <p className="flex items-center justify-between gap-3">
+              <span className="text-muted-foreground">Pérdida %</span>
+              <span className="whitespace-nowrap">{((calc?.totalLossPct ?? 0) || 0).toFixed(2)}%</span>
+            </p>
+          </div>
+          <div className="rounded-xl border border-border/60 bg-muted/25 p-3 text-sm leading-relaxed">
+            <p className="flex items-center justify-between gap-3">
+              <span className="text-muted-foreground">Rendimiento final</span>
+              <span className="whitespace-nowrap">{(calc?.finalPct ?? 0).toFixed(2)}%</span>
+            </p>
+            <p className="flex items-center justify-between gap-3">
+              <span className="text-muted-foreground">Tiempo total ({calcMode === "pipeline" ? "pipeline" : "secuencial"})</span>
+              <span className="whitespace-nowrap">
+                {formatDuration(calcMode === "pipeline" ? calc?.totalSeconds ?? 0 : calc?.sequentialTotalSeconds ?? 0)}
+              </span>
+            </p>
+            {calcMode === "pipeline" ? (
+              <>
+                <p className="flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground">Primera salida</span>
+                  <span className="whitespace-nowrap">{formatDuration(calc?.firstOutputSeconds ?? 0)}</span>
+                </p>
+              </>
+            ) : null}
+          </div>
+        </div>
+        <div className="mt-8 w-full">
           <Table>
             <TableHeader>
               <TableRow>
@@ -481,9 +532,9 @@ export function LavadoPage() {
           icon={Settings}
           title="Configuración"
           description="Editable por admin."
-          className="min-h-0 overflow-hidden"
+          className="overflow-visible"
         >
-          <div className="max-h-[260px] overflow-auto pr-1">
+          <div className="pr-1">
             <LavadoConfigForm
               config={config}
               canEdit={profile?.role === "admin"}
