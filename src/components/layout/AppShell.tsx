@@ -1,13 +1,15 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import {
   ClipboardList,
   LayoutDashboard,
   Package,
   Settings,
   BarChart3,
+  Banknote,
+  CircleDollarSign,
   ScrollText,
-  Waves,
   LogOut,
 } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
@@ -15,6 +17,10 @@ import { Button } from "@/components/ui/button";
 import { useAppSettingsQuery } from "@/hooks/useAppSettingsQuery";
 import { useGlobalStockSummary, usePedidosKpiQuery } from "@/hooks/useGlobalStockSummary";
 import { cn } from "@/lib/utils";
+import { fetchLavadoTandas } from "@/features/lavado/lavadoService";
+import { formatDuration } from "@/features/lavado/lavadoMath";
+import { fetchLavadoPedidos } from "@/features/lavado-pedidos/lavadoPedidosService";
+import { deliveryCountdownLabel } from "@/features/lavado-pedidos/lavadoPedidosMath";
 
 /** Título por defecto (login aún no carga settings; coincide con index.html). */
 const DEFAULT_APP_TITLE = "Yakuza Meta Stock";
@@ -25,18 +31,46 @@ const nav = [
   { to: "/stock", label: "Stock", icon: Package },
   { to: "/estadisticas", label: "Estadísticas", icon: BarChart3 },
   { to: "/historial", label: "Historial", icon: ScrollText },
-  { to: "/lavado", label: "Lavado", icon: Waves },
+  { to: "/lavado", label: "Lavado", icon: CircleDollarSign },
+  { to: "/lavado-pedidos", label: "Pedidos Lavado", icon: Banknote },
   { to: "/admin", label: "Admin", icon: Settings, adminOnly: true },
 ];
 
 export function AppShell() {
   const { profile, signOut } = useAuth();
+  const [now, setNow] = useState(Date.now());
   const settingsQ = useAppSettingsQuery();
   const stock = useGlobalStockSummary();
   const pedidosKpi = usePedidosKpiQuery();
+  const lavadoTandasQ = useQuery({
+    queryKey: ["lavado", "tandas", "topbar"],
+    queryFn: fetchLavadoTandas,
+    refetchInterval: 30_000,
+  });
+  const lavadoPedidosQ = useQuery({
+    queryKey: ["lavado-pedidos", "topbar"],
+    queryFn: fetchLavadoPedidos,
+    refetchInterval: 30_000,
+  });
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
 
   const appTitle = settingsQ.data?.app_name?.trim() || DEFAULT_APP_TITLE;
   const tiradasNecesarias = pedidosKpi.data?.tiradas_faltantes;
+  const lavadoActive = (lavadoTandasQ.data ?? []).filter((t) => t.estado === "activo");
+  const nextLavado = [...lavadoActive].sort(
+    (a, b) => new Date(a.finaliza_estimado_at).getTime() - new Date(b.finaliza_estimado_at).getTime()
+  )[0];
+  const lavadoPedidosActive = (lavadoPedidosQ.data ?? []).filter((p) =>
+    ["recibido", "dinero_recibido", "dinero_entregado", "en_espera", "listo_para_entregar"].includes(p.estado)
+  );
+  const dineroPorEntregar = lavadoPedidosActive.reduce((s, p) => s + Number(p.monto_entregar), 0);
+  const nextLavadoPedido = lavadoPedidosActive
+    .filter((p) => p.tipo_pago === "plazo_7_dias" && p.fecha_entrega)
+    .sort((a, b) => new Date(`${a.fecha_entrega}T00:00:00`).getTime() - new Date(`${b.fecha_entrega}T00:00:00`).getTime())[0];
 
   useEffect(() => {
     document.title = appTitle;
@@ -120,6 +154,40 @@ export function AppShell() {
                 tone="danger"
               />
             </div>
+            <div className="flex min-w-0 flex-wrap gap-2 border-l border-border/70 pl-3">
+              <MetricPill
+                label="Lavado activo"
+                value={String(lavadoActive.length)}
+                loading={lavadoTandasQ.isLoading}
+                unit="tandas"
+                tone="success"
+              />
+              <MetricPill
+                label="Próx. tanda"
+                value={
+                  nextLavado
+                    ? formatDuration(Math.max(0, Math.round((new Date(nextLavado.finaliza_estimado_at).getTime() - now) / 1000)))
+                    : "—"
+                }
+                loading={lavadoTandasQ.isLoading}
+                unit=""
+                tone="warning"
+              />
+              <MetricPill
+                label="Lavado a entregar"
+                value={formatCompactMoney(dineroPorEntregar)}
+                loading={lavadoPedidosQ.isLoading}
+                unit=""
+                tone="success"
+              />
+              <MetricPill
+                label="Próx. entrega"
+                value={nextLavadoPedido ? deliveryCountdownLabel(nextLavadoPedido.tipo_pago, nextLavadoPedido.fecha_entrega) : "—"}
+                loading={lavadoPedidosQ.isLoading}
+                unit=""
+                tone="warning"
+              />
+            </div>
           </div>
         </header>
 
@@ -129,6 +197,17 @@ export function AppShell() {
       </div>
     </div>
   );
+}
+
+function formatCompactMoney(value: number) {
+  return new Intl.NumberFormat("es-AR", {
+    style: "currency",
+    currency: "ARS",
+    notation: "compact",
+    maximumFractionDigits: 1,
+  })
+    .format(value)
+    .replace(/\$\s+/u, "$");
 }
 
 function MetricPill(props: {

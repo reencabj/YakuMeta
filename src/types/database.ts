@@ -35,6 +35,16 @@ export type MovementType =
   | "vaciado_deposito"
   | "correccion_composicion";
 
+export type LavadoPedidoTipoPago = "instantaneo" | "plazo_7_dias";
+export type LavadoPedidoEstado =
+  | "recibido"
+  | "dinero_recibido"
+  | "dinero_entregado"
+  | "en_espera"
+  | "listo_para_entregar"
+  | "completado"
+  | "cancelado";
+
 export interface Database {
   public: {
     Tables: {
@@ -481,6 +491,83 @@ export interface Database {
             | "webhook_locked_at"
             | "webhook_started_notified_at"
             | "webhook_notified_at"
+            | "updated_by"
+          >
+        >;
+      };
+      lavado_pedidos_config: {
+        Row: {
+          id: number;
+          comision_instantaneo: number;
+          comision_7_dias: number;
+          script_porcentaje: number;
+          dias_entrega_plazo: number;
+          discord_webhook_url: string | null;
+          discord_entrega_role_id: string;
+          created_at: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: Record<string, never>;
+        Update: Partial<Omit<Database["public"]["Tables"]["lavado_pedidos_config"]["Row"], "id" | "created_at">>;
+      };
+      lavado_pedidos: {
+        Row: {
+          id: string;
+          org_persona: string;
+          monto: number;
+          tipo_pago: LavadoPedidoTipoPago;
+          comision_pct: number;
+          script_pct: number;
+          monto_entregar: number;
+          descuento_total: number;
+          perdida_script: number;
+          ganancia_real_banda: number;
+          fecha_creacion: string;
+          fecha_entrega: string | null;
+          estado: LavadoPedidoEstado;
+          creado_por_usuario_id: string;
+          completado_por_usuario_id: string | null;
+          completado_at: string | null;
+          cancelado_at: string | null;
+          webhook_creado_notified_at: string | null;
+          webhook_completado_notified_at: string | null;
+          webhook_entrega_hoy_notified_at: string | null;
+          webhook_locked_at: string | null;
+          notas: string | null;
+          created_at: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          org_persona: string;
+          monto: number;
+          tipo_pago: LavadoPedidoTipoPago;
+          comision_pct: number;
+          script_pct: number;
+          monto_entregar: number;
+          descuento_total: number;
+          perdida_script: number;
+          ganancia_real_banda: number;
+          fecha_creacion?: string;
+          fecha_entrega?: string | null;
+          estado: LavadoPedidoEstado;
+          creado_por_usuario_id: string;
+          notas?: string | null;
+        };
+        Update: Partial<
+          Pick<
+            Database["public"]["Tables"]["lavado_pedidos"]["Row"],
+            | "org_persona"
+            | "estado"
+            | "completado_por_usuario_id"
+            | "completado_at"
+            | "cancelado_at"
+            | "webhook_creado_notified_at"
+            | "webhook_completado_notified_at"
+            | "webhook_entrega_hoy_notified_at"
+            | "webhook_locked_at"
+            | "notas"
             | "updated_by"
           >
         >;

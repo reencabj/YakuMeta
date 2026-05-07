@@ -30,6 +30,12 @@ import {
   type VipClientRow,
 } from "@/services/adminService";
 import { fetchAppSettings, updateAppSettings, type AppSettingsRow } from "@/services/appSettingsService";
+import {
+  fetchLavadoPedidosConfig,
+  sendLavadoPedidoWebhookTest,
+  updateLavadoPedidosConfig,
+  type LavadoPedidoConfigRow,
+} from "@/features/lavado-pedidos/lavadoPedidosService";
 import { authRecoveryRedirectUrl, supabase } from "@/lib/supabase";
 import { suggestedPricePerKgMeta } from "@/lib/order-pricing";
 import { PageHeader, PageShell, PanelCard, SegmentTabs } from "@/components/shell";
@@ -69,6 +75,11 @@ export function AdminPage() {
   const pricingQ = useQuery({
     queryKey: ["pricing_rules"],
     queryFn: fetchPricingRules,
+  });
+
+  const lavadoPedidosConfigQ = useQuery({
+    queryKey: ["lavado-pedidos", "config"],
+    queryFn: fetchLavadoPedidosConfig,
   });
 
   const vipClientsQ = useQuery({
@@ -137,6 +148,27 @@ export function AdminPage() {
       void qc.invalidateQueries({ queryKey: ["app_settings"] });
       void qc.invalidateQueries({ queryKey: ["app-settings"] });
     },
+  });
+
+  const updateLavadoPedidosConfigM = useMutation({
+    mutationFn: (patch: Database["public"]["Tables"]["lavado_pedidos_config"]["Update"]) =>
+      updateLavadoPedidosConfig(patch),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["lavado-pedidos", "config"] }),
+    onError: (err: Error) => window.alert(err.message),
+  });
+
+  const testLavadoPedidosWebhookM = useMutation({
+    mutationFn: (kind: "created_7_days" | "instant_completed" | "due_today") => {
+      const config = lavadoPedidosConfigQ.data;
+      if (!config?.discord_webhook_url?.trim()) throw new Error("Configurá el webhook primero.");
+      return sendLavadoPedidoWebhookTest({
+        kind,
+        webhookUrl: config.discord_webhook_url,
+        roleId: config.discord_entrega_role_id,
+      });
+    },
+    onSuccess: () => window.alert("Webhook de prueba enviado."),
+    onError: (err: Error) => window.alert(err.message),
   });
 
   const insertTypeM = useMutation({
@@ -487,12 +519,23 @@ export function AdminPage() {
       ) : null}
 
       {tab === "settings" && settings ? (
-        <SettingsForm
-          settings={settings}
-          loading={settingsQ.isLoading}
-          onSave={(patch) => updateSettingsM.mutate(patch)}
-          saving={updateSettingsM.isPending}
-        />
+        <div className="space-y-4">
+          <SettingsForm
+            settings={settings}
+            loading={settingsQ.isLoading}
+            onSave={(patch) => updateSettingsM.mutate(patch)}
+            saving={updateSettingsM.isPending}
+          />
+          {lavadoPedidosConfigQ.data ? (
+            <LavadoPedidosDiscordConfig
+              config={lavadoPedidosConfigQ.data}
+              saving={updateLavadoPedidosConfigM.isPending}
+              testing={testLavadoPedidosWebhookM.isPending}
+              onSave={(patch) => updateLavadoPedidosConfigM.mutate(patch)}
+              onTest={(kind) => testLavadoPedidosWebhookM.mutate(kind)}
+            />
+          ) : null}
+        </div>
       ) : null}
 
       {tab === "pricing" ? (
@@ -905,6 +948,73 @@ function SettingsForm(props: {
         <Button type="button" disabled={props.saving} onClick={() => props.onSave(form)}>
           {props.saving ? "Guardando…" : "Guardar cambios"}
         </Button>
+      </div>
+    </PanelCard>
+  );
+}
+
+function LavadoPedidosDiscordConfig(props: {
+  config: LavadoPedidoConfigRow;
+  saving: boolean;
+  testing: boolean;
+  onSave: (patch: Database["public"]["Tables"]["lavado_pedidos_config"]["Update"]) => void;
+  onTest: (kind: "created_7_days" | "instant_completed" | "due_today") => void;
+}) {
+  const [webhookUrl, setWebhookUrl] = useState(props.config.discord_webhook_url ?? "");
+  const [roleId, setRoleId] = useState(props.config.discord_entrega_role_id);
+
+  useEffect(() => {
+    setWebhookUrl(props.config.discord_webhook_url ?? "");
+    setRoleId(props.config.discord_entrega_role_id);
+  }, [props.config]);
+
+  return (
+    <PanelCard
+      icon={Settings}
+      title="Discord Pedidos Lavado"
+      description="Webhook operativo para avisos de creación, completado instantáneo y entregas de 7 días."
+    >
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto]">
+        <div className="grid gap-3">
+          <div className="space-y-1">
+            <Label className="text-xs">Webhook Discord pedidos lavado</Label>
+            <Input
+              value={webhookUrl}
+              onChange={(e) => setWebhookUrl(e.target.value)}
+              placeholder="https://discord.com/api/webhooks/..."
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Rol Discord para entregas de hoy</Label>
+            <Input value={roleId} onChange={(e) => setRoleId(e.target.value.replace(/\D/g, ""))} />
+            <p className="text-xs text-muted-foreground">
+              Se menciona como <code className="rounded bg-muted px-1">&lt;@&amp;{roleId || "role_id"}&gt;</code>.
+            </p>
+          </div>
+        </div>
+        <div className="flex min-w-[220px] flex-col justify-end gap-2">
+          <Button
+            type="button"
+            disabled={props.saving}
+            onClick={() =>
+              props.onSave({
+                discord_webhook_url: webhookUrl.trim() ? webhookUrl.trim() : null,
+                discord_entrega_role_id: roleId.trim() || "1501920920783290378",
+              })
+            }
+          >
+            {props.saving ? "Guardando…" : "Guardar Discord"}
+          </Button>
+          <Button type="button" variant="outline" disabled={props.testing} onClick={() => props.onTest("created_7_days")}>
+            Test pedido 7 días
+          </Button>
+          <Button type="button" variant="outline" disabled={props.testing} onClick={() => props.onTest("instant_completed")}>
+            Test instantáneo completado
+          </Button>
+          <Button type="button" variant="outline" disabled={props.testing} onClick={() => props.onTest("due_today")}>
+            Test entrega hoy + rol
+          </Button>
+        </div>
       </div>
     </PanelCard>
   );
