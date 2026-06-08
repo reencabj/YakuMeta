@@ -581,6 +581,16 @@ export interface Database {
           total_libre_kilos: number;
         };
       };
+      v_deposit_stock_metrics: {
+        Row: {
+          deposito_id: string;
+          total_meta_kg: number;
+          reservado_meta_kg: number;
+          libre_meta_kg: number;
+          oldest_batch_date: string | null;
+          nearest_expiry: string | null;
+        };
+      };
       v_pending_orders_gap: {
         Row: {
           order_id: string;

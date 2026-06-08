@@ -46,50 +46,17 @@ export async function fetchDepositsWithTypes(): Promise<DepositWithType[]> {
 }
 
 export async function fetchBatchMetricsByDeposit(): Promise<DepositMetrics[]> {
-  const { data, error } = await supabase
-    .from("stock_batches")
-    .select("deposito_id, cantidad_meta_kilos, cantidad_reservada_meta_kilos, cantidad_disponible_meta_kilos, fecha_guardado, fecha_vencimiento_estimada, is_active")
-    .eq("is_active", true);
+  const { data, error } = await supabase.from("v_deposit_stock_metrics").select("*");
 
   if (error) throw error;
 
-  const map = new Map<
-    string,
-    {
-      total: number;
-      reservado: number;
-      libre: number;
-      minDate: string | null;
-      minExpiry: string | null;
-    }
-  >();
-
-  for (const b of data ?? []) {
-    const id = b.deposito_id;
-    const cur = map.get(id) ?? {
-      total: 0,
-      reservado: 0,
-      libre: 0,
-      minDate: null as string | null,
-      minExpiry: null as string | null,
-    };
-    cur.total += Number(b.cantidad_meta_kilos);
-    cur.reservado += Number(b.cantidad_reservada_meta_kilos);
-    cur.libre += Number(b.cantidad_disponible_meta_kilos);
-    const fg = b.fecha_guardado;
-    if (fg && (!cur.minDate || fg < cur.minDate)) cur.minDate = fg;
-    const fe = b.fecha_vencimiento_estimada;
-    if (fe && (!cur.minExpiry || fe < cur.minExpiry)) cur.minExpiry = fe;
-    map.set(id, cur);
-  }
-
-  return [...map.entries()].map(([deposito_id, m]) => ({
-    deposito_id,
-    total_meta_kg: m.total,
-    reservado_meta_kg: m.reservado,
-    libre_meta_kg: m.libre,
-    oldest_batch_date: m.minDate,
-    nearest_expiry: m.minExpiry,
+  return (data ?? []).map((row) => ({
+    deposito_id: row.deposito_id,
+    total_meta_kg: Number(row.total_meta_kg),
+    reservado_meta_kg: Number(row.reservado_meta_kg),
+    libre_meta_kg: Number(row.libre_meta_kg),
+    oldest_batch_date: row.oldest_batch_date,
+    nearest_expiry: row.nearest_expiry,
   }));
 }
 
