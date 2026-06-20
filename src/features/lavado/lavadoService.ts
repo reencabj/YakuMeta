@@ -1,5 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import type { Database } from "@/types/database";
+import type { LavadoAlmacenId } from "./lavadoConstants";
+import { lavadoTandaSlotLabel } from "./lavadoConstants";
 import { processDurationSeconds, processOutput, type LavadoProcesoId } from "./lavadoMath";
 
 export type LavadoConfigRow = Database["public"]["Tables"]["lavado_config"]["Row"];
@@ -66,6 +68,7 @@ function processCfg(config: LavadoConfigRow, process: LavadoProcesoId) {
 
 export async function createLavadoTanda(input: {
   userId: string;
+  almacen: LavadoAlmacenId;
   process: LavadoProcesoId;
   amount: number;
   station: number;
@@ -82,17 +85,24 @@ export async function createLavadoTanda(input: {
   const { data: inUse, error: inUseErr } = await supabase
     .from("lavado_tandas")
     .select("id")
+    .eq("almacen", input.almacen)
     .eq("proceso", input.process)
     .eq("estacion", input.station)
     .eq("estado", "activo")
     .limit(1);
   if (inUseErr) throw inUseErr;
   if ((inUse ?? []).length > 0) {
-    throw new Error("La estación seleccionada ya está ocupada.");
+    const slot = lavadoTandaSlotLabel({
+      almacen: input.almacen,
+      proceso: input.process,
+      estacion: input.station,
+    });
+    throw new Error(`${slot} ya está ocupada.`);
   }
 
   const row: Database["public"]["Tables"]["lavado_tandas"]["Insert"] = {
     usuario_id: input.userId,
+    almacen: input.almacen,
     proceso: input.process,
     monto_entrada: input.amount,
     monto_salida_esperado: expectedOutput,
@@ -141,12 +151,29 @@ export async function reconcileExpiredLavadoTandas() {
   return (data ?? []) as LavadoTandaRow[];
 }
 
-function durationLabel(fromIso: string, toIso: string) {
-  const sec = Math.max(0, Math.round((new Date(toIso).getTime() - new Date(fromIso).getTime()) / 1000));
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  if (m > 0) return `${m}m ${s}s`;
-  return `${s}s`;
+function formatUsd(n: number) {
+  return `$${Number(n).toLocaleString("en-US")}`;
+}
+
+/** Rol a pingear cuando termina una tanda de lavado. */
+const LAVADO_FINISHED_ROLE_ID = "1501920920783290378";
+
+function postLavadoDiscordWebhook(input: {
+  webhookUrl: string;
+  content?: string;
+  embed: Record<string, unknown>;
+  pingRole?: boolean;
+}) {
+  const body: Record<string, unknown> = { embeds: [input.embed] };
+  if (input.content) body.content = input.content;
+  if (input.pingRole) {
+    body.allowed_mentions = { roles: [LAVADO_FINISHED_ROLE_ID] };
+  }
+  return fetch(input.webhookUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
 }
 
 export async function sendLavadoDiscordWebhookStarted(input: { tanda: LavadoTandaRow; username: string; webhookUrl: string }) {
@@ -161,31 +188,22 @@ export async function sendLavadoDiscordWebhookStarted(input: { tanda: LavadoTand
   if (lockErr || !lockData) return;
 
   try {
-    const start = new Date(input.tanda.iniciado_at);
-    const end = new Date(input.tanda.finaliza_estimado_at);
-    const endUnix = Math.floor(end.getTime() / 1000);
+    const endUnix = Math.floor(new Date(input.tanda.finaliza_estimado_at).getTime() / 1000);
+    const slot = lavadoTandaSlotLabel({
+      almacen: input.tanda.almacen,
+      proceso: input.tanda.proceso,
+      estacion: input.tanda.estacion,
+    });
     const embed = {
       title: "Lavado iniciado",
-      description: `Se inició el proceso ${input.tanda.proceso}.`,
+      description: [
+        `**${slot}**`,
+        `${formatUsd(input.tanda.monto_entrada)} → ${formatUsd(input.tanda.monto_salida_esperado)} · ${input.username || "—"}`,
+        `Termina <t:${endUnix}:R>`,
+      ].join("\n"),
       color: 10181046,
-      fields: [
-        { name: "Usuario", value: input.username || "—", inline: true },
-        { name: "Proceso", value: input.tanda.proceso, inline: true },
-        { name: "Estación", value: String(input.tanda.estacion), inline: true },
-        { name: "Monto inicial", value: `$${Number(input.tanda.monto_entrada).toLocaleString("en-US")}`, inline: true },
-        { name: "Salida esperada", value: `$${Number(input.tanda.monto_salida_esperado).toLocaleString("en-US")}`, inline: true },
-        { name: "Duración", value: durationLabel(input.tanda.iniciado_at, input.tanda.finaliza_estimado_at), inline: true },
-        { name: "Finaliza", value: `<t:${endUnix}:F>`, inline: true },
-        { name: "Cuenta regresiva", value: `<t:${endUnix}:R>`, inline: true },
-        { name: "Inicio", value: start.toLocaleString("es-AR"), inline: true },
-      ],
-      timestamp: new Date().toISOString(),
     };
-    const res = await fetch(input.webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ embeds: [embed] }),
-    });
+    const res = await postLavadoDiscordWebhook({ webhookUrl: input.webhookUrl, embed });
     if (!res.ok) throw new Error(`discord_http_${res.status}`);
     await supabase
       .from("lavado_tandas")
@@ -214,32 +232,24 @@ export async function sendLavadoDiscordWebhookFinished(input: { tanda: LavadoTan
   if (!lockData) return;
 
   try {
-    const start = new Date(input.tanda.iniciado_at);
-    const end = new Date();
-    const durationMs = end.getTime() - start.getTime();
-    const endUnix = Math.floor(end.getTime() / 1000);
-
+    const slot = lavadoTandaSlotLabel({
+      almacen: input.tanda.almacen,
+      proceso: input.tanda.proceso,
+      estacion: input.tanda.estacion,
+    });
     const embed = {
       title: "Lavado finalizado",
-      description: `El tiempo del proceso ${input.tanda.proceso} llegó a su fin.`,
+      description: [`**${slot}**`, `${formatUsd(input.tanda.monto_entrada)} → ${formatUsd(input.tanda.monto_salida_esperado)}`].join(
+        "\n"
+      ),
       color: 5763719,
-      fields: [
-        { name: "Usuario", value: input.username || "—", inline: true },
-        { name: "Proceso", value: input.tanda.proceso, inline: true },
-        { name: "Estación", value: String(input.tanda.estacion), inline: true },
-        { name: "Monto inicial", value: `$${Number(input.tanda.monto_entrada).toLocaleString("en-US")}`, inline: true },
-        { name: "Monto final", value: `$${Number(input.tanda.monto_salida_esperado).toLocaleString("en-US")}`, inline: true },
-        { name: "Inicio", value: start.toLocaleString("es-AR"), inline: true },
-        { name: "Finalización", value: `<t:${endUnix}:F>`, inline: true },
-        { name: "Duración", value: `${Math.max(0, Math.round(durationMs / 1000))}s`, inline: true },
-      ],
-      timestamp: new Date().toISOString(),
     };
 
-    const res = await fetch(input.webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ embeds: [embed] }),
+    const res = await postLavadoDiscordWebhook({
+      webhookUrl: input.webhookUrl,
+      content: `<@&${LAVADO_FINISHED_ROLE_ID}>`,
+      embed,
+      pingRole: true,
     });
     if (!res.ok) {
       throw new Error(`discord_http_${res.status}`);

@@ -459,6 +459,7 @@ export interface Database {
         Row: {
           id: string;
           usuario_id: string;
+          almacen: "liquid" | "growshop";
           proceso: "imprimir" | "cortar" | "secar" | "contar";
           monto_entrada: number;
           monto_salida_esperado: number;
@@ -476,6 +477,7 @@ export interface Database {
         };
         Insert: {
           usuario_id: string;
+          almacen: "liquid" | "growshop";
           proceso: "imprimir" | "cortar" | "secar" | "contar";
           monto_entrada: number;
           monto_salida_esperado: number;

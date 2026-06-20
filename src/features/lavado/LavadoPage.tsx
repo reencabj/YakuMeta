@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Clock3, Droplets, FlaskConical, PlayCircle, Settings, Timer } from "lucide-react";
+import { Check, Clock3, Droplets, FlaskConical, PlayCircle, Settings, Timer, X } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { PageHeader, PageShell, PanelCard, StatTile } from "@/components/shell";
 import { Button } from "@/components/ui/button";
@@ -21,14 +21,14 @@ import {
   updateLavadoConfig,
   type LavadoConfigRow,
 } from "./lavadoService";
-import { estimatePipeline, formatDuration, type LavadoConfigSnapshot, type LavadoProcesoId } from "./lavadoMath";
-
-const PROCESS_META: Record<LavadoProcesoId, { label: string; in: string; out: string }> = {
-  imprimir: { label: "Imprimir", in: "Billetes Enrollados", out: "Hojas de billetes" },
-  cortar: { label: "Cortar", in: "Hojas de billetes", out: "Dinero Mojado" },
-  secar: { label: "Secar", in: "Dinero Mojado", out: "Dinero Seco" },
-  contar: { label: "Contar", in: "Dinero Seco", out: "Dinero en Efectivo" },
-};
+import { estimatePipeline, formatDuration, type LavadoConfigSnapshot, type LavadoProcesoConfig, type LavadoProcesoId } from "./lavadoMath";
+import {
+  LAVADO_ALMACENES,
+  lavadoAlmacenLabel,
+  PROCESS_META,
+  type LavadoAlmacenId,
+} from "./lavadoConstants";
+import type { LavadoTandaRow } from "./lavadoService";
 
 function asPct(n: number) {
   return Math.round(n * 10000) / 100;
@@ -41,6 +41,13 @@ function num(n: unknown) {
 
 function money(n: number) {
   return n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
+function moneyCompact(n: number) {
+  const v = num(n);
+  if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+  if (v >= 1000) return `$${Math.round(v / 1000)}k`;
+  return `$${money(v)}`;
 }
 
 function playTandaFinishedBeep() {
@@ -135,10 +142,6 @@ export function LavadoPage() {
   const qc = useQueryClient();
   const { profile } = useAuth();
   const [now, setNow] = useState(Date.now());
-  const [printAmount, setPrintAmount] = useState("100000");
-  const [printStation, setPrintStation] = useState("1");
-  const [dryAmount, setDryAmount] = useState("100000");
-  const [dryStation, setDryStation] = useState("1");
   const [calcAmount, setCalcAmount] = useState("100000");
   const [calcMode, setCalcMode] = useState<"pipeline" | "sequential">("pipeline");
   const finishedAlertedRef = useRef<Set<string>>(new Set());
@@ -157,10 +160,11 @@ export function LavadoPage() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["lavado", "config"] }),
   });
   const createM = useMutation({
-    mutationFn: (input: { process: LavadoProcesoId; amount: number; station: number }) => {
+    mutationFn: (input: { almacen: LavadoAlmacenId; process: LavadoProcesoId; amount: number; station: number }) => {
       if (!profile?.id || !configQ.data) throw new Error("Sesión o configuración no disponible.");
       return createLavadoTanda({
         userId: profile.id,
+        almacen: input.almacen,
         process: input.process,
         amount: input.amount,
         station: input.station,
@@ -184,6 +188,13 @@ export function LavadoPage() {
   const config = configQ.data;
   const tandas = useMemo(() => tandasQ.data ?? [], [tandasQ.data]);
   const active = useMemo(() => tandas.filter((t) => t.estado === "activo"), [tandas]);
+  const activeByRemaining = useMemo(
+    () =>
+      [...active].sort(
+        (a, b) => new Date(a.finaliza_estimado_at).getTime() - new Date(b.finaliza_estimado_at).getTime()
+      ),
+    [active]
+  );
   const history = useMemo(() => tandas.filter((t) => t.estado !== "activo"), [tandas]);
   const totalInProcess = active.reduce((acc, t) => acc + num(t.monto_entrada), 0);
   const totalOutEstimated = active.reduce((acc, t) => acc + num(t.monto_salida_esperado), 0);
@@ -215,32 +226,6 @@ export function LavadoPage() {
 
   const printCfg = useMemo(() => snapshot?.procesos.find((p) => p.id === "imprimir") ?? null, [snapshot]);
   const dryCfg = useMemo(() => snapshot?.procesos.find((p) => p.id === "secar") ?? null, [snapshot]);
-  const occupiedPrintStations = useMemo(
-    () => new Set(active.filter((t) => t.proceso === "imprimir").map((t) => String(t.estacion))),
-    [active]
-  );
-  const occupiedDryStations = useMemo(
-    () => new Set(active.filter((t) => t.proceso === "secar").map((t) => String(t.estacion))),
-    [active]
-  );
-
-  useEffect(() => {
-    const total = printCfg?.estaciones ?? 1;
-    const currentBusy = occupiedPrintStations.has(printStation);
-    const currentOutOfRange = Number(printStation) < 1 || Number(printStation) > total;
-    if (currentBusy || currentOutOfRange) {
-      setPrintStation(firstFreeStation(total, occupiedPrintStations));
-    }
-  }, [occupiedPrintStations, printCfg?.estaciones, printStation]);
-
-  useEffect(() => {
-    const total = dryCfg?.estaciones ?? 1;
-    const currentBusy = occupiedDryStations.has(dryStation);
-    const currentOutOfRange = Number(dryStation) < 1 || Number(dryStation) > total;
-    if (currentBusy || currentOutOfRange) {
-      setDryStation(firstFreeStation(total, occupiedDryStations));
-    }
-  }, [dryCfg?.estaciones, dryStation, occupiedDryStations]);
 
   useEffect(() => {
     if (!profile) return;
@@ -277,7 +262,7 @@ export function LavadoPage() {
     <PageShell className="gap-4">
       <PageHeader
         title="Lavado"
-        description="Control operativo de tandas, cálculo de pérdidas y cronómetro por estación para el flujo de lavado."
+        description="Control operativo por almacén (Liquid y Growshop). Cada timer indica almacén, proceso y estación."
       />
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -298,143 +283,71 @@ export function LavadoPage() {
       <PanelCard
         icon={PlayCircle}
         title="Nueva tanda"
-        description="Procesos con duración: imprimir y secar."
-        className="self-start overflow-hidden"
+        description="Liquid y Growshop · imprimir E1 · secar E1/E2"
+        className="self-start overflow-hidden xl:col-span-2"
       >
-        <div className="grid gap-3 xl:grid-cols-2">
-          <div className="rounded-xl border border-border/60 bg-muted/15 p-3">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Imprimir</p>
-            <div className="mt-2 grid gap-3 md:grid-cols-3">
-              <FieldInput label="Monto entrada" value={printAmount} onChange={setPrintAmount} />
-              <StationButtons
-                label="Estación"
-                selected={printStation}
-                onSelect={setPrintStation}
-                totalStations={printCfg?.estaciones ?? 1}
-                occupied={occupiedPrintStations}
-              />
-              <div className="space-y-1.5">
-                <Label className="text-xs">Salida esperada</Label>
-                <div className="flex h-9 items-center rounded-md border border-input bg-background px-3 text-sm">
-                  ${money(printCfg ? (Number(printAmount) || 0) * (1 - printCfg.perdida) : 0)}
-                </div>
-              </div>
-            </div>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Entrada: {PROCESS_META.imprimir.in}. Salida: {PROCESS_META.imprimir.out}. Límite: $
-              {money(printCfg?.minimo ?? 0)} - ${money(printCfg?.maximo ?? 0)}.
-            </p>
-            <div className="mt-3 flex justify-end">
-              <Button
-                type="button"
-                disabled={createM.isPending}
-                onClick={() => createM.mutate({ process: "imprimir", amount: Number(printAmount), station: Number(printStation) })}
-              >
-                Iniciar imprimir
-              </Button>
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-border/60 bg-muted/15 p-3">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Secar</p>
-            <div className="mt-2 grid gap-3 md:grid-cols-3">
-              <FieldInput label="Monto entrada" value={dryAmount} onChange={setDryAmount} />
-              <StationButtons
-                label="Estación"
-                selected={dryStation}
-                onSelect={setDryStation}
-                totalStations={dryCfg?.estaciones ?? 1}
-                occupied={occupiedDryStations}
-              />
-              <div className="space-y-1.5">
-                <Label className="text-xs">Salida esperada</Label>
-                <div className="flex h-9 items-center rounded-md border border-input bg-background px-3 text-sm">
-                  ${money(dryCfg ? (Number(dryAmount) || 0) * (1 - dryCfg.perdida) : 0)}
-                </div>
-              </div>
-            </div>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Entrada: {PROCESS_META.secar.in}. Salida: {PROCESS_META.secar.out}. Límite: ${money(dryCfg?.minimo ?? 0)} - $
-              {money(dryCfg?.maximo ?? 0)}.
-            </p>
-            <div className="mt-3 flex justify-end">
-              <Button
-                type="button"
-                disabled={createM.isPending}
-                onClick={() => createM.mutate({ process: "secar", amount: Number(dryAmount), station: Number(dryStation) })}
-              >
-                Iniciar secado
-              </Button>
-            </div>
-          </div>
+        <div className="grid gap-2 lg:grid-cols-2">
+          {LAVADO_ALMACENES.map((alm) => (
+            <WarehouseTandaPanel
+              key={alm.id}
+              almacen={alm.id}
+              label={alm.label}
+              printCfg={printCfg}
+              dryCfg={dryCfg}
+              active={active}
+              isPending={createM.isPending}
+              onStart={(input) => createM.mutate({ almacen: alm.id, ...input })}
+            />
+          ))}
         </div>
       </PanelCard>
 
       <PanelCard
         icon={Clock3}
         title="Tandas activas"
-        description="Cronómetro en tiempo real por tanda."
-        className="self-start overflow-hidden"
+        description={`${active.length} en curso`}
+        className="self-start overflow-hidden min-h-0 xl:col-span-2"
       >
-        <div className="max-h-[220px] overflow-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Proceso</TableHead>
-              <TableHead>Estación</TableHead>
-              <TableHead>Monto entrada</TableHead>
-              <TableHead>Monto salida</TableHead>
-              <TableHead>Restante</TableHead>
-              <TableHead>Estado</TableHead>
-              <TableHead />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {active.map((t) => {
-              const remaining = Math.max(0, Math.round((new Date(t.finaliza_estimado_at).getTime() - now) / 1000));
-              return (
-                <TableRow
-                  key={t.id}
-                  className={cn(
-                    remaining === 0 && "animate-pulse bg-emerald-500/10 ring-1 ring-inset ring-emerald-400/40"
-                  )}
-                >
-                  <TableCell>{PROCESS_META[t.proceso].label}</TableCell>
-                  <TableCell>{t.estacion}</TableCell>
-                  <TableCell>${money(num(t.monto_entrada))}</TableCell>
-                  <TableCell>${money(num(t.monto_salida_esperado))}</TableCell>
-                  <TableCell className={cn("font-mono text-xs", remaining === 0 && "font-semibold text-emerald-400")}>
-                    {formatDuration(remaining)}
-                  </TableCell>
-                  <TableCell>activo</TableCell>
-                  <TableCell className="space-x-2">
-                    <Button size="sm" variant="outline" onClick={() => completeM.mutate(t.id)}>
-                      Completar
-                    </Button>
-                    <Button size="sm" variant="ghost" className="text-red-400" onClick={() => cancelM.mutate(t.id)}>
-                      Cancelar
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-            {active.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} className="text-sm text-muted-foreground">
-                  No hay tandas activas.
-                </TableCell>
-              </TableRow>
-            ) : null}
-          </TableBody>
-        </Table>
-        </div>
+        {activeByRemaining.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No hay tandas activas.</p>
+        ) : (
+          <div className="flex flex-wrap content-start gap-1.5">
+            {activeByRemaining.map((t) => (
+              <ActiveTandaCard
+                key={t.id}
+                tanda={t}
+                now={now}
+                onComplete={() => completeM.mutate(t.id)}
+                onCancel={() => cancelM.mutate(t.id)}
+              />
+            ))}
+          </div>
+        )}
       </PanelCard>
+
+      {config ? (
+        <PanelCard
+          icon={Settings}
+          title="Configuración"
+          description="Editable por admin."
+          className="overflow-visible min-h-0 self-start"
+        >
+          <div className="pr-1">
+            <LavadoConfigForm
+              config={config}
+              canEdit={profile?.role === "admin"}
+              saving={updateConfigM.isPending}
+              onSave={(patch) => updateConfigM.mutate(patch)}
+            />
+          </div>
+        </PanelCard>
+      ) : null}
 
       <PanelCard
         icon={FlaskConical}
         title="Calculadora"
         description="Pérdidas encadenadas y tiempo estimado."
-        className="min-h-0 overflow-hidden"
+        className="min-h-0 overflow-hidden self-start"
       >
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <div className="w-full max-w-xs">
@@ -526,24 +439,6 @@ export function LavadoPage() {
           </Table>
         </div>
       </PanelCard>
-
-      {config ? (
-        <PanelCard
-          icon={Settings}
-          title="Configuración"
-          description="Editable por admin."
-          className="overflow-visible"
-        >
-          <div className="pr-1">
-            <LavadoConfigForm
-              config={config}
-              canEdit={profile?.role === "admin"}
-              saving={updateConfigM.isPending}
-              onSave={(patch) => updateConfigM.mutate(patch)}
-            />
-          </div>
-        </PanelCard>
-      ) : null}
       </section>
 
       <PanelCard icon={Clock3} title="Historial" description="Tandas completadas o canceladas." className="min-h-0">
@@ -554,6 +449,7 @@ export function LavadoPage() {
           <TableHeader>
             <TableRow>
               <TableHead>Inicio</TableHead>
+              <TableHead>Almacén</TableHead>
               <TableHead>Proceso</TableHead>
               <TableHead>Estación</TableHead>
               <TableHead>Monto entrada</TableHead>
@@ -566,8 +462,9 @@ export function LavadoPage() {
             {history.map((t) => (
               <TableRow key={t.id}>
                 <TableCell>{new Date(t.iniciado_at).toLocaleString("es-AR")}</TableCell>
+                <TableCell>{lavadoAlmacenLabel(t.almacen)}</TableCell>
                 <TableCell>{PROCESS_META[t.proceso].label}</TableCell>
-                <TableCell>{t.estacion}</TableCell>
+                <TableCell>E{t.estacion}</TableCell>
                 <TableCell>${money(num(t.monto_entrada))}</TableCell>
                 <TableCell>${money(num(t.monto_salida_esperado))}</TableCell>
                 <TableCell>{t.estado}</TableCell>
@@ -576,7 +473,7 @@ export function LavadoPage() {
             ))}
             {history.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-sm text-muted-foreground">
+                <TableCell colSpan={8} className="text-sm text-muted-foreground">
                   Sin tandas finalizadas todavía.
                 </TableCell>
               </TableRow>
@@ -590,11 +487,215 @@ export function LavadoPage() {
   );
 }
 
-function FieldInput(props: { label: string; value: string; onChange: (v: string) => void }) {
+function ActiveTandaCard(props: {
+  tanda: LavadoTandaRow;
+  now: number;
+  onComplete: () => void;
+  onCancel: () => void;
+}) {
+  const t = props.tanda;
+  const remaining = Math.max(0, Math.round((new Date(t.finaliza_estimado_at).getTime() - props.now) / 1000));
+  const done = remaining === 0;
+
   return (
-    <div className="space-y-1.5">
-      <Label className="text-xs">{props.label}</Label>
-      <Input className="h-9" value={props.value} onChange={(e) => props.onChange(e.target.value)} />
+    <div
+      className={cn(
+        "flex size-[9.375rem] shrink-0 flex-col overflow-hidden rounded-md border border-border/60 bg-muted/15 p-2.5",
+        done && "animate-pulse border-emerald-400/50 bg-emerald-500/10 ring-1 ring-inset ring-emerald-400/35"
+      )}
+    >
+      <div className="shrink-0 space-y-1">
+        <p className="truncate text-xs font-semibold leading-none">{lavadoAlmacenLabel(t.almacen)}</p>
+        <p className="truncate text-[11px] leading-none text-muted-foreground">
+          {PROCESS_META[t.proceso].label} · E{t.estacion}
+        </p>
+      </div>
+
+      <div className="flex min-h-0 flex-1 items-center justify-center py-1">
+        <p
+          className={cn(
+            "max-w-full truncate text-center font-mono text-base font-semibold tabular-nums leading-none",
+            done ? "text-emerald-400" : "text-foreground"
+          )}
+        >
+          {formatDuration(remaining)}
+        </p>
+      </div>
+
+      <p className="shrink-0 truncate text-center text-[11px] leading-none tabular-nums text-muted-foreground">
+        {moneyCompact(num(t.monto_entrada))} → {moneyCompact(num(t.monto_salida_esperado))}
+      </p>
+
+      <div className="mt-1.5 grid shrink-0 grid-cols-2 gap-1">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-7 min-w-0 gap-1 px-1.5 text-[11px] leading-none"
+          onClick={props.onComplete}
+          title="Completar"
+        >
+          <Check className="size-3 shrink-0" aria-hidden />
+          <span className="truncate">Listo</span>
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-7 min-w-0 gap-1 px-1.5 text-[11px] leading-none text-red-400 hover:text-red-300"
+          onClick={props.onCancel}
+          title="Cancelar"
+        >
+          <X className="size-3 shrink-0" aria-hidden />
+          <span className="truncate">Cancelar</span>
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function WarehouseTandaPanel(props: {
+  almacen: LavadoAlmacenId;
+  label: string;
+  printCfg: LavadoProcesoConfig | null;
+  dryCfg: LavadoProcesoConfig | null;
+  active: LavadoTandaRow[];
+  isPending: boolean;
+  onStart: (input: { process: LavadoProcesoId; amount: number; station: number }) => void;
+}) {
+  const [printAmount, setPrintAmount] = useState("100000");
+  const [printStation, setPrintStation] = useState("1");
+  const [dryAmount, setDryAmount] = useState("100000");
+  const [dryStation, setDryStation] = useState("1");
+
+  const warehouseActive = useMemo(
+    () => props.active.filter((t) => t.almacen === props.almacen),
+    [props.active, props.almacen]
+  );
+  const occupiedPrintStations = useMemo(
+    () => new Set(warehouseActive.filter((t) => t.proceso === "imprimir").map((t) => String(t.estacion))),
+    [warehouseActive]
+  );
+  const occupiedDryStations = useMemo(
+    () => new Set(warehouseActive.filter((t) => t.proceso === "secar").map((t) => String(t.estacion))),
+    [warehouseActive]
+  );
+
+  useEffect(() => {
+    const total = props.printCfg?.estaciones ?? 1;
+    const currentBusy = occupiedPrintStations.has(printStation);
+    const currentOutOfRange = Number(printStation) < 1 || Number(printStation) > total;
+    if (currentBusy || currentOutOfRange) {
+      setPrintStation(firstFreeStation(total, occupiedPrintStations));
+    }
+  }, [occupiedPrintStations, props.printCfg?.estaciones, printStation]);
+
+  useEffect(() => {
+    const total = props.dryCfg?.estaciones ?? 1;
+    const currentBusy = occupiedDryStations.has(dryStation);
+    const currentOutOfRange = Number(dryStation) < 1 || Number(dryStation) > total;
+    if (currentBusy || currentOutOfRange) {
+      setDryStation(firstFreeStation(total, occupiedDryStations));
+    }
+  }, [props.dryCfg?.estaciones, dryStation, occupiedDryStations]);
+
+  return (
+    <div className="rounded-lg border border-border/70 bg-muted/10 p-2">
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <p className="text-sm font-semibold leading-none">{props.label}</p>
+        <span className="text-[10px] tabular-nums text-muted-foreground">
+          {warehouseActive.length} activa{warehouseActive.length === 1 ? "" : "s"}
+        </span>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <CompactProcessBlock
+          title="Imprimir · E1"
+          hint={`${PROCESS_META.imprimir.in} → ${PROCESS_META.imprimir.out}`}
+          amount={printAmount}
+          onAmountChange={setPrintAmount}
+          station={printStation}
+          onStationSelect={setPrintStation}
+          totalStations={props.printCfg?.estaciones ?? 1}
+          occupied={occupiedPrintStations}
+          expectedOutput={props.printCfg ? (Number(printAmount) || 0) * (1 - props.printCfg.perdida) : 0}
+          buttonLabel="Imprimir"
+          isPending={props.isPending}
+          onStart={() =>
+            props.onStart({ process: "imprimir", amount: Number(printAmount), station: Number(printStation) })
+          }
+        />
+        <CompactProcessBlock
+          title="Secar · E1, E2"
+          hint={`${PROCESS_META.secar.in} → ${PROCESS_META.secar.out}`}
+          amount={dryAmount}
+          onAmountChange={setDryAmount}
+          station={dryStation}
+          onStationSelect={setDryStation}
+          totalStations={props.dryCfg?.estaciones ?? 1}
+          occupied={occupiedDryStations}
+          expectedOutput={props.dryCfg ? (Number(dryAmount) || 0) * (1 - props.dryCfg.perdida) : 0}
+          buttonLabel="Secar"
+          isPending={props.isPending}
+          onStart={() =>
+            props.onStart({ process: "secar", amount: Number(dryAmount), station: Number(dryStation) })
+          }
+        />
+      </div>
+    </div>
+  );
+}
+
+function CompactProcessBlock(props: {
+  title: string;
+  hint: string;
+  amount: string;
+  onAmountChange: (v: string) => void;
+  station: string;
+  onStationSelect: (v: string) => void;
+  totalStations: number;
+  occupied: Set<string>;
+  expectedOutput: number;
+  buttonLabel: string;
+  isPending: boolean;
+  onStart: () => void;
+}) {
+  return (
+    <div className="rounded-md border border-border/50 bg-muted/15 p-2" title={props.hint}>
+      <div className="mb-1.5 flex items-center justify-between gap-1">
+        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{props.title}</p>
+        <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">${money(props.expectedOutput)}</span>
+      </div>
+      <div className="flex flex-wrap items-end gap-1.5">
+        <div className="min-w-[72px] flex-1">
+          <FieldInput compact label="Entrada" value={props.amount} onChange={props.onAmountChange} />
+        </div>
+        <div className={cn("shrink-0", props.totalStations > 1 ? "min-w-[5.5rem]" : "min-w-[2.75rem]")}>
+          <StationButtons
+            compact
+            label="Est."
+            selected={props.station}
+            onSelect={props.onStationSelect}
+            totalStations={props.totalStations}
+            occupied={props.occupied}
+          />
+        </div>
+        <Button type="button" size="sm" className="h-8 shrink-0 px-2.5 text-xs" disabled={props.isPending} onClick={props.onStart}>
+          {props.buttonLabel}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function FieldInput(props: { label: string; value: string; onChange: (v: string) => void; compact?: boolean }) {
+  return (
+    <div className={cn("space-y-1", props.compact && "space-y-0.5")}>
+      <Label className={cn("text-xs", props.compact && "text-[10px]")}>{props.label}</Label>
+      <Input
+        className={cn("h-9", props.compact && "h-8 px-2 text-sm")}
+        value={props.value}
+        onChange={(e) => props.onChange(e.target.value)}
+      />
     </div>
   );
 }
@@ -605,11 +706,12 @@ function StationButtons(props: {
   onSelect: (v: string) => void;
   totalStations: number;
   occupied: Set<string>;
+  compact?: boolean;
 }) {
   return (
-    <div className="space-y-1.5">
-      <Label className="text-xs">{props.label}</Label>
-      <div className="flex h-9 gap-2">
+    <div className={cn("space-y-1", props.compact && "space-y-0.5")}>
+      <Label className={cn("text-xs", props.compact && "text-[10px]")}>{props.label}</Label>
+      <div className={cn("flex gap-1", props.compact ? "h-8" : "h-9 gap-2")}>
         {Array.from({ length: Math.max(1, props.totalStations) }, (_, i) => {
           const station = String(i + 1);
           const busy = props.occupied.has(station);
@@ -621,7 +723,8 @@ function StationButtons(props: {
               disabled={busy}
               onClick={() => props.onSelect(station)}
               className={cn(
-                "inline-flex min-w-0 flex-1 items-center justify-center rounded-md border px-2 text-sm transition-colors",
+                "inline-flex min-w-0 flex-1 items-center justify-center rounded-md border transition-colors",
+                props.compact ? "px-1 text-xs" : "px-2 text-sm",
                 selected
                   ? "border-primary/45 bg-primary/20 text-foreground"
                   : "border-input bg-background text-foreground hover:bg-muted/60",

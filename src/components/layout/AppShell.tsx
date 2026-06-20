@@ -18,6 +18,7 @@ import { useAppSettingsQuery } from "@/hooks/useAppSettingsQuery";
 import { useGlobalStockSummary, usePedidosKpiQuery } from "@/hooks/useGlobalStockSummary";
 import { cn } from "@/lib/utils";
 import { fetchLavadoTandas } from "@/features/lavado/lavadoService";
+import { lavadoAlmacenLabel, PROCESS_META } from "@/features/lavado/lavadoConstants";
 import { formatDuration } from "@/features/lavado/lavadoMath";
 import { fetchLavadoPedidos } from "@/features/lavado-pedidos/lavadoPedidosService";
 import { deliveryCountdownLabel } from "@/features/lavado-pedidos/lavadoPedidosMath";
@@ -166,7 +167,7 @@ export function AppShell() {
                 label="Próx. tanda"
                 value={
                   nextLavado
-                    ? formatDuration(Math.max(0, Math.round((new Date(nextLavado.finaliza_estimado_at).getTime() - now) / 1000)))
+                    ? `${lavadoAlmacenLabel(nextLavado.almacen)} · ${PROCESS_META[nextLavado.proceso].label} E${nextLavado.estacion}: ${formatDuration(Math.max(0, Math.round((new Date(nextLavado.finaliza_estimado_at).getTime() - now) / 1000)))}`
                     : "—"
                 }
                 loading={lavadoTandasQ.isLoading}
