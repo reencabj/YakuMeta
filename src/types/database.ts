@@ -593,6 +593,29 @@ export interface Database {
           nearest_expiry: string | null;
         };
       };
+      v_lavado_money_totals: {
+        Row: {
+          ingresado_completado: number;
+          salida_completado: number;
+          ingresado_activo: number;
+          salida_activo: number;
+          tandas_imprimir_completadas: number;
+          tandas_secar_completadas: number;
+          tandas_imprimir_activas: number;
+          tandas_secar_activas: number;
+        };
+      };
+      v_lavado_money_by_almacen: {
+        Row: {
+          almacen: "liquid" | "growshop";
+          ingresado_completado: number;
+          salida_completado: number;
+          tandas_imprimir_completadas: number;
+          tandas_secar_completadas: number;
+          ingresado_activo: number;
+          salida_activo: number;
+        };
+      };
       v_pending_orders_gap: {
         Row: {
           order_id: string;

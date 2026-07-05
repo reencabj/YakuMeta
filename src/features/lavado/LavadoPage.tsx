@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Clock3, Droplets, FlaskConical, PlayCircle, Settings, Timer, X } from "lucide-react";
+import { Check, Clock3, DollarSign, Droplets, FlaskConical, PlayCircle, Settings, Timer, X } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { PageHeader, PageShell, PanelCard, StatTile } from "@/components/shell";
 import { Button } from "@/components/ui/button";
@@ -15,11 +15,13 @@ import {
   completeLavadoTanda,
   createLavadoTanda,
   fetchLavadoConfig,
+  fetchLavadoMoneySummary,
   fetchLavadoTandas,
   sendLavadoDiscordWebhookFinished,
   sendLavadoDiscordWebhookStarted,
   updateLavadoConfig,
   type LavadoConfigRow,
+  type LavadoMoneySummary,
 } from "./lavadoService";
 import { estimatePipeline, formatDuration, type LavadoConfigSnapshot, type LavadoProcesoConfig, type LavadoProcesoId } from "./lavadoMath";
 import {
@@ -154,6 +156,12 @@ export function LavadoPage() {
   const configQ = useQuery({ queryKey: ["lavado", "config"], queryFn: fetchLavadoConfig });
   const appSettingsQ = useAppSettingsQuery();
   const tandasQ = useQuery({ queryKey: ["lavado", "tandas"], queryFn: fetchLavadoTandas, refetchInterval: 15_000 });
+  const moneySummaryQ = useQuery({ queryKey: ["lavado", "money-summary"], queryFn: fetchLavadoMoneySummary });
+
+  const invalidateLavado = () => {
+    void qc.invalidateQueries({ queryKey: ["lavado", "tandas"] });
+    void qc.invalidateQueries({ queryKey: ["lavado", "money-summary"] });
+  };
 
   const updateConfigM = useMutation({
     mutationFn: updateLavadoConfig,
@@ -171,18 +179,16 @@ export function LavadoPage() {
         config: configQ.data,
       });
     },
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["lavado", "tandas"] });
-    },
+    onSuccess: invalidateLavado,
     onError: (e: Error) => window.alert(e.message),
   });
   const completeM = useMutation({
     mutationFn: completeLavadoTanda,
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ["lavado", "tandas"] }),
+    onSuccess: invalidateLavado,
   });
   const cancelM = useMutation({
     mutationFn: cancelLavadoTanda,
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ["lavado", "tandas"] }),
+    onSuccess: invalidateLavado,
   });
 
   const config = configQ.data;
@@ -196,8 +202,12 @@ export function LavadoPage() {
     [active]
   );
   const history = useMemo(() => tandas.filter((t) => t.estado !== "activo"), [tandas]);
-  const totalInProcess = active.reduce((acc, t) => acc + num(t.monto_entrada), 0);
-  const totalOutEstimated = active.reduce((acc, t) => acc + num(t.monto_salida_esperado), 0);
+  const totalInProcess = active
+    .filter((t) => t.proceso === "imprimir")
+    .reduce((acc, t) => acc + num(t.monto_entrada), 0);
+  const totalOutEstimated = active
+    .filter((t) => t.proceso === "secar")
+    .reduce((acc, t) => acc + num(t.monto_salida_esperado), 0);
   const nextToFinish = [...active].sort(
     (a, b) => new Date(a.finaliza_estimado_at).getTime() - new Date(b.finaliza_estimado_at).getTime()
   )[0];
@@ -267,8 +277,8 @@ export function LavadoPage() {
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile icon={Timer} label="Lavado activo" value={String(active.length)} unit="tandas" tone="slate" dense />
-        <StatTile icon={Droplets} label="Dinero en proceso" value={`$${money(totalInProcess)}`} unit="USD" tone="amber" dense />
-        <StatTile icon={FlaskConical} label="Dinero limpio estimado" value={`$${money(totalOutEstimated)}`} unit="USD" tone="emerald" dense />
+        <StatTile icon={Droplets} label="En imprimir (activo)" value={`$${money(totalInProcess)}`} unit="USD" tone="amber" dense />
+        <StatTile icon={FlaskConical} label="En secado (salida est.)" value={`$${money(totalOutEstimated)}`} unit="USD" tone="emerald" dense />
         <StatTile
           icon={Clock3}
           label="Próxima tanda en finalizar"
@@ -483,7 +493,127 @@ export function LavadoPage() {
           </div>
         </details>
       </PanelCard>
+
+      <LavadoMoneyCounterPanel summary={moneySummaryQ.data} isLoading={moneySummaryQ.isLoading} />
     </PageShell>
+  );
+}
+
+function LavadoMoneyCounterPanel(props: { summary: LavadoMoneySummary | undefined; isLoading: boolean }) {
+  const totals = props.summary?.totals;
+  const byAlmacen = props.summary?.byAlmacen ?? [];
+
+  const ingresado = num(totals?.ingresado_completado);
+  const salida = num(totals?.salida_completado);
+  const perdida = ingresado - salida;
+  const perdidaPct = ingresado > 0 ? (perdida / ingresado) * 100 : 0;
+  const ingresadoActivo = num(totals?.ingresado_activo);
+  const salidaActivo = num(totals?.salida_activo);
+  const imprimirCompletadas = num(totals?.tandas_imprimir_completadas);
+  const secarCompletadas = num(totals?.tandas_secar_completadas);
+
+  const rowsByAlmacen = LAVADO_ALMACENES.map((alm) => {
+    const row = byAlmacen.find((r) => r.almacen === alm.id);
+    const ing = num(row?.ingresado_completado);
+    const out = num(row?.salida_completado);
+    return {
+      id: alm.id,
+      label: alm.label,
+      ingresado: ing,
+      salida: out,
+      perdida: ing - out,
+      imprimirCompletadas: num(row?.tandas_imprimir_completadas),
+      secarCompletadas: num(row?.tandas_secar_completadas),
+      ingresadoActivo: num(row?.ingresado_activo),
+      salidaActivo: num(row?.salida_activo),
+    };
+  });
+
+  return (
+    <PanelCard
+      icon={DollarSign}
+      title="Contador de dinero lavado"
+      description="Entrada acumulada en imprimir · salida acumulada en secar (tandas completadas)."
+    >
+      {props.isLoading && !props.summary ? (
+        <p className="text-sm text-muted-foreground">Cargando totales…</p>
+      ) : (
+        <div className="space-y-4">
+          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <StatTile
+              icon={DollarSign}
+              label="Ingresado (imprimir)"
+              value={`$${money(ingresado)}`}
+              unit="USD"
+              hint={`${imprimirCompletadas} tandas de impresión`}
+              tone="amber"
+              dense
+            />
+            <StatTile
+              icon={FlaskConical}
+              label="Sacado (secado)"
+              value={`$${money(salida)}`}
+              unit="USD"
+              hint={`${secarCompletadas} tandas de secado`}
+              tone="emerald"
+              dense
+            />
+            <StatTile
+              icon={Droplets}
+              label="Pérdida acumulada"
+              value={`$${money(perdida)}`}
+              unit={ingresado > 0 ? `${asPct(perdidaPct / 100)}%` : ""}
+              tone="rose"
+              dense
+            />
+            <StatTile
+              icon={Timer}
+              label="En curso ahora"
+              value={`$${money(ingresadoActivo)}`}
+              unit={`→ $${moneyCompact(salidaActivo)}`}
+              hint="Imprimir activo → secado activo (salida est.)"
+              tone="slate"
+              dense
+            />
+          </section>
+
+          <div className="overflow-x-auto rounded-md border border-border/60">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Almacén</TableHead>
+                  <TableHead className="text-right">Ingresado</TableHead>
+                  <TableHead className="text-right">Sacado</TableHead>
+                  <TableHead className="text-right">Pérdida</TableHead>
+                  <TableHead className="text-right">Imp. / Sec.</TableHead>
+                  <TableHead className="text-right">Activo</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rowsByAlmacen.map((row) => (
+                  <TableRow key={row.id}>
+                    <TableCell className="font-medium">{row.label}</TableCell>
+                    <TableCell className="text-right tabular-nums">${money(row.ingresado)}</TableCell>
+                    <TableCell className="text-right tabular-nums text-emerald-600 dark:text-emerald-400">
+                      ${money(row.salida)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums text-muted-foreground">${money(row.perdida)}</TableCell>
+                    <TableCell className="text-right tabular-nums text-xs">
+                      {row.imprimirCompletadas} / {row.secarCompletadas}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums text-xs text-muted-foreground">
+                      {row.ingresadoActivo > 0 || row.salidaActivo > 0
+                        ? `$${moneyCompact(row.ingresadoActivo)} → $${moneyCompact(row.salidaActivo)}`
+                        : "—"}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
+    </PanelCard>
   );
 }
 

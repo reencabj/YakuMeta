@@ -6,6 +6,13 @@ import { processDurationSeconds, processOutput, type LavadoProcesoId } from "./l
 
 export type LavadoConfigRow = Database["public"]["Tables"]["lavado_config"]["Row"];
 export type LavadoTandaRow = Database["public"]["Tables"]["lavado_tandas"]["Row"];
+export type LavadoMoneyTotalsRow = Database["public"]["Views"]["v_lavado_money_totals"]["Row"];
+export type LavadoMoneyByAlmacenRow = Database["public"]["Views"]["v_lavado_money_by_almacen"]["Row"];
+
+export type LavadoMoneySummary = {
+  totals: LavadoMoneyTotalsRow;
+  byAlmacen: LavadoMoneyByAlmacenRow[];
+};
 
 export async function fetchLavadoConfig(): Promise<LavadoConfigRow> {
   const { data, error } = await supabase.from("lavado_config").select("*").eq("id", 1).single();
@@ -27,6 +34,31 @@ export async function fetchLavadoTandas() {
     .limit(300);
   if (error) throw error;
   return (data ?? []) as LavadoTandaRow[];
+}
+
+export async function fetchLavadoMoneySummary(): Promise<LavadoMoneySummary> {
+  const [totalsRes, byAlmacenRes] = await Promise.all([
+    supabase.from("v_lavado_money_totals").select("*").maybeSingle(),
+    supabase.from("v_lavado_money_by_almacen").select("*").order("almacen"),
+  ]);
+  if (totalsRes.error) throw totalsRes.error;
+  if (byAlmacenRes.error) throw byAlmacenRes.error;
+
+  const emptyTotals: LavadoMoneyTotalsRow = {
+    ingresado_completado: 0,
+    salida_completado: 0,
+    ingresado_activo: 0,
+    salida_activo: 0,
+    tandas_imprimir_completadas: 0,
+    tandas_secar_completadas: 0,
+    tandas_imprimir_activas: 0,
+    tandas_secar_activas: 0,
+  };
+
+  return {
+    totals: (totalsRes.data as LavadoMoneyTotalsRow | null) ?? emptyTotals,
+    byAlmacen: (byAlmacenRes.data ?? []) as LavadoMoneyByAlmacenRow[],
+  };
 }
 
 function processCfg(config: LavadoConfigRow, process: LavadoProcesoId) {
