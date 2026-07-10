@@ -26,6 +26,28 @@ export async function updateLavadoConfig(patch: Database["public"]["Tables"]["la
   return data as LavadoConfigRow;
 }
 
+export async function fetchLavadoTandasActivas() {
+  const { data, error } = await supabase
+    .from("lavado_tandas")
+    .select("*")
+    .eq("estado", "activo")
+    .order("finaliza_estimado_at", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as LavadoTandaRow[];
+}
+
+export async function fetchLavadoTandasHistorial(limit = 50, offset = 0) {
+  const { data, error } = await supabase
+    .from("lavado_tandas")
+    .select("*")
+    .neq("estado", "activo")
+    .order("iniciado_at", { ascending: false })
+    .range(offset, offset + limit - 1);
+  if (error) throw error;
+  return (data ?? []) as LavadoTandaRow[];
+}
+
+/** @deprecated Usar fetchLavadoTandasActivas / fetchLavadoTandasHistorial */
 export async function fetchLavadoTandas() {
   const { data, error } = await supabase
     .from("lavado_tandas")

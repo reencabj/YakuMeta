@@ -102,6 +102,7 @@ export function PanelCard(props: {
   description?: ReactNode;
   children: ReactNode;
   className?: string;
+  contentClassName?: string;
   headerExtra?: ReactNode;
 }) {
   const Icon = props.icon;
@@ -128,7 +129,7 @@ export function PanelCard(props: {
           {props.headerExtra}
         </div>
       </div>
-      <CardContent className="flex-1 p-5">{props.children}</CardContent>
+      <CardContent className={cn("flex-1 p-5", props.contentClassName)}>{props.children}</CardContent>
     </Card>
   );
 }

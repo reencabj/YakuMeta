@@ -17,7 +17,8 @@ import { Button } from "@/components/ui/button";
 import { useAppSettingsQuery } from "@/hooks/useAppSettingsQuery";
 import { useGlobalStockSummary, usePedidosKpiQuery } from "@/hooks/useGlobalStockSummary";
 import { cn } from "@/lib/utils";
-import { fetchLavadoTandas } from "@/features/lavado/lavadoService";
+import { fetchLavadoTandasActivas } from "@/features/lavado/lavadoService";
+import { lavadoQueryKeys } from "@/features/lavado/lavadoQueryKeys";
 import { lavadoAlmacenLabel, PROCESS_META } from "@/features/lavado/lavadoConstants";
 import { formatDuration } from "@/features/lavado/lavadoMath";
 import { fetchLavadoPedidos } from "@/features/lavado-pedidos/lavadoPedidosService";
@@ -44,9 +45,9 @@ export function AppShell() {
   const stock = useGlobalStockSummary();
   const pedidosKpi = usePedidosKpiQuery();
   const lavadoTandasQ = useQuery({
-    queryKey: ["lavado", "tandas", "topbar"],
-    queryFn: fetchLavadoTandas,
-    refetchInterval: 30_000,
+    queryKey: lavadoQueryKeys.tandasActivas,
+    queryFn: fetchLavadoTandasActivas,
+    refetchInterval: 15_000,
   });
   const lavadoPedidosQ = useQuery({
     queryKey: ["lavado-pedidos", "topbar"],
