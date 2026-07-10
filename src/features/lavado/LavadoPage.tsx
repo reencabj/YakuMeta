@@ -9,7 +9,6 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAppSettingsQuery } from "@/hooks/useAppSettingsQuery";
 import { cn } from "@/lib/utils";
-import type { Database } from "@/types/database";
 import {
   cancelLavadoTanda,
   completeLavadoTanda,
@@ -23,7 +22,7 @@ import {
   type LavadoConfigRow,
   type LavadoMoneySummary,
 } from "./lavadoService";
-import { estimatePipeline, formatDuration, type LavadoConfigSnapshot, type LavadoProcesoConfig, type LavadoProcesoId } from "./lavadoMath";
+import { estimatePipeline, formatDuration, processDurationSeconds, type LavadoConfigSnapshot, type LavadoProcesoConfig, type LavadoProcesoId } from "./lavadoMath";
 import {
   LAVADO_ALMACENES,
   lavadoAlmacenLabel,
@@ -83,6 +82,13 @@ function playTandaFinishedBeep() {
   } catch {
     // Si el navegador bloquea audio sin interacción previa, ignoramos silenciosamente.
   }
+}
+
+function tandaDurationLabel(cfg: LavadoProcesoConfig | null, amountRaw: string): string | null {
+  if (!cfg) return null;
+  const amount = Number(amountRaw);
+  if (!Number.isFinite(amount) || amount < cfg.minimo || amount > cfg.maximo) return null;
+  return formatDuration(processDurationSeconds(cfg, amount));
 }
 
 function firstFreeStation(totalStations: number, occupied: Set<string>) {
@@ -164,7 +170,30 @@ export function LavadoPage() {
   };
 
   const updateConfigM = useMutation({
-    mutationFn: updateLavadoConfig,
+    mutationFn: (form: LavadoConfigRow) =>
+      updateLavadoConfig({
+        perdida_proceso_1: form.perdida_proceso_1,
+        perdida_proceso_2: form.perdida_proceso_2,
+        perdida_proceso_3: form.perdida_proceso_3,
+        perdida_proceso_4: form.perdida_proceso_4,
+        min_proceso_1: form.min_proceso_1,
+        max_proceso_1: form.max_proceso_1,
+        min_proceso_2: form.min_proceso_2,
+        max_proceso_2: form.max_proceso_2,
+        min_proceso_3: form.min_proceso_3,
+        max_proceso_3: form.max_proceso_3,
+        min_proceso_4: form.min_proceso_4,
+        max_proceso_4: form.max_proceso_4,
+        duracion_base_p1_minutos: form.duracion_base_p1_minutos,
+        duracion_base_p3_minutos: form.duracion_base_p3_minutos,
+        duracion_manual_p2_segundos: form.duracion_manual_p2_segundos,
+        duracion_manual_p4_segundos: form.duracion_manual_p4_segundos,
+        estaciones_p1: form.estaciones_p1,
+        estaciones_p2: form.estaciones_p2,
+        estaciones_p3: form.estaciones_p3,
+        estaciones_p4: form.estaciones_p4,
+        discord_webhook_url: form.discord_webhook_url,
+      }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["lavado", "config"] }),
   });
   const createM = useMutation({
@@ -339,7 +368,7 @@ export function LavadoPage() {
         <PanelCard
           icon={Settings}
           title="Configuración"
-          description="Editable por admin."
+          description="Editable por admin. Duración al máximo = tiempo con carga máxima de la máquina."
           className="overflow-visible min-h-0 self-start"
         >
           <div className="pr-1">
@@ -347,7 +376,7 @@ export function LavadoPage() {
               config={config}
               canEdit={profile?.role === "admin"}
               saving={updateConfigM.isPending}
-              onSave={(patch) => updateConfigM.mutate(patch)}
+              onSave={(form) => updateConfigM.mutate(form)}
             />
           </div>
         </PanelCard>
@@ -356,7 +385,7 @@ export function LavadoPage() {
       <PanelCard
         icon={FlaskConical}
         title="Calculadora"
-        description="Pérdidas encadenadas y tiempo estimado."
+        description="Pérdidas encadenadas y tiempo (automáticos: proporcional al máximo de cada máquina)."
         className="min-h-0 overflow-hidden self-start"
       >
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
@@ -748,6 +777,9 @@ function WarehouseTandaPanel(props: {
           totalStations={props.printCfg?.estaciones ?? 1}
           occupied={occupiedPrintStations}
           expectedOutput={props.printCfg ? (Number(printAmount) || 0) * (1 - props.printCfg.perdida) : 0}
+          estimatedDuration={tandaDurationLabel(props.printCfg, printAmount)}
+          minAmount={props.printCfg?.minimo}
+          maxAmount={props.printCfg?.maximo}
           buttonLabel="Imprimir"
           isPending={props.isPending}
           onStart={() =>
@@ -764,6 +796,9 @@ function WarehouseTandaPanel(props: {
           totalStations={props.dryCfg?.estaciones ?? 1}
           occupied={occupiedDryStations}
           expectedOutput={props.dryCfg ? (Number(dryAmount) || 0) * (1 - props.dryCfg.perdida) : 0}
+          estimatedDuration={tandaDurationLabel(props.dryCfg, dryAmount)}
+          minAmount={props.dryCfg?.minimo}
+          maxAmount={props.dryCfg?.maximo}
           buttonLabel="Secar"
           isPending={props.isPending}
           onStart={() =>
@@ -785,10 +820,21 @@ function CompactProcessBlock(props: {
   totalStations: number;
   occupied: Set<string>;
   expectedOutput: number;
+  estimatedDuration: string | null;
+  minAmount?: number;
+  maxAmount?: number;
   buttonLabel: string;
   isPending: boolean;
   onStart: () => void;
 }) {
+  const amountNum = Number(props.amount);
+  const hasAmount = props.amount.trim() !== "" && Number.isFinite(amountNum);
+  const outOfRange =
+    hasAmount &&
+    props.minAmount != null &&
+    props.maxAmount != null &&
+    (amountNum < props.minAmount || amountNum > props.maxAmount);
+
   return (
     <div className="rounded-md border border-border/50 bg-muted/15 p-2" title={props.hint}>
       <div className="mb-1.5 flex items-center justify-between gap-1">
@@ -809,10 +855,25 @@ function CompactProcessBlock(props: {
             occupied={props.occupied}
           />
         </div>
-        <Button type="button" size="sm" className="h-8 shrink-0 px-2.5 text-xs" disabled={props.isPending} onClick={props.onStart}>
+        <Button
+          type="button"
+          size="sm"
+          className="h-8 shrink-0 px-2.5 text-xs"
+          disabled={props.isPending || !props.estimatedDuration}
+          onClick={props.onStart}
+        >
           {props.buttonLabel}
         </Button>
       </div>
+      <p className="mt-1 text-[10px] tabular-nums text-muted-foreground">
+        {props.estimatedDuration ? (
+          <>Tiempo estimado: {props.estimatedDuration}</>
+        ) : outOfRange && props.minAmount != null && props.maxAmount != null ? (
+          <>Rango: ${money(props.minAmount)} – ${money(props.maxAmount)}</>
+        ) : (
+          <>Tiempo proporcional al máximo de la máquina</>
+        )}
+      </p>
     </div>
   );
 }
@@ -875,7 +936,7 @@ function LavadoConfigForm(props: {
   config: LavadoConfigRow;
   canEdit: boolean;
   saving: boolean;
-  onSave: (patch: Database["public"]["Tables"]["lavado_config"]["Update"]) => void;
+  onSave: (form: LavadoConfigRow) => void;
 }) {
   const [form, setForm] = useState(props.config);
 
@@ -893,7 +954,7 @@ function LavadoConfigForm(props: {
           <FieldInput label="Mínimo" value={String(form.min_proceso_1)} onChange={(v) => setForm((f) => ({ ...f, min_proceso_1: Number(v) }))} />
           <FieldInput label="Máximo" value={String(form.max_proceso_1)} onChange={(v) => setForm((f) => ({ ...f, max_proceso_1: Number(v) }))} />
           <FieldInput
-            label="Duración base (min)"
+            label="Duración al máximo (min)"
             value={String(form.duracion_base_p1_minutos)}
             onChange={(v) => setForm((f) => ({ ...f, duracion_base_p1_minutos: Number(v) }))}
           />
@@ -925,7 +986,7 @@ function LavadoConfigForm(props: {
           <FieldInput label="Mínimo" value={String(form.min_proceso_3)} onChange={(v) => setForm((f) => ({ ...f, min_proceso_3: Number(v) }))} />
           <FieldInput label="Máximo" value={String(form.max_proceso_3)} onChange={(v) => setForm((f) => ({ ...f, max_proceso_3: Number(v) }))} />
           <FieldInput
-            label="Duración base (min)"
+            label="Duración al máximo (min)"
             value={String(form.duracion_base_p3_minutos)}
             onChange={(v) => setForm((f) => ({ ...f, duracion_base_p3_minutos: Number(v) }))}
           />

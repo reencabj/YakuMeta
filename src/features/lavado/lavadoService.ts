@@ -63,35 +63,43 @@ export async function fetchLavadoMoneySummary(): Promise<LavadoMoneySummary> {
 
 function processCfg(config: LavadoConfigRow, process: LavadoProcesoId) {
   if (process === "imprimir") {
+    const maximo = Number(config.max_proceso_1);
     return {
       min: Number(config.min_proceso_1),
-      max: Number(config.max_proceso_1),
+      max: maximo,
+      maximo,
       loss: Number(config.perdida_proceso_1),
       automatico: true,
       baseMinutos: Number(config.duracion_base_p1_minutos),
     };
   }
   if (process === "cortar") {
+    const maximo = Number(config.max_proceso_2);
     return {
       min: Number(config.min_proceso_2),
-      max: Number(config.max_proceso_2),
+      max: maximo,
+      maximo,
       loss: Number(config.perdida_proceso_2),
       automatico: false,
       manualSegundos: Number(config.duracion_manual_p2_segundos),
     };
   }
   if (process === "secar") {
+    const maximo = Number(config.max_proceso_3);
     return {
       min: Number(config.min_proceso_3),
-      max: Number(config.max_proceso_3),
+      max: maximo,
+      maximo,
       loss: Number(config.perdida_proceso_3),
       automatico: true,
       baseMinutos: Number(config.duracion_base_p3_minutos),
     };
   }
+  const maximo = Number(config.max_proceso_4);
   return {
     min: Number(config.min_proceso_4),
-    max: Number(config.max_proceso_4),
+    max: maximo,
+    maximo,
     loss: Number(config.perdida_proceso_4),
     automatico: false,
     manualSegundos: Number(config.duracion_manual_p4_segundos),

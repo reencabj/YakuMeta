@@ -25,11 +25,13 @@ export function processOutput(inputAmount: number, loss: number) {
 }
 
 export function processDurationSeconds(
-  process: Pick<LavadoProcesoConfig, "automatico" | "baseMinutos" | "manualSegundos">,
+  process: Pick<LavadoProcesoConfig, "automatico" | "baseMinutos" | "manualSegundos" | "maximo">,
   amount: number
 ) {
   if (process.automatico) {
-    return Math.max(1, Math.round((amount / 100000) * (process.baseMinutos ?? 116) * 60));
+    const maximo = process.maximo > 0 ? process.maximo : 1;
+    const baseMinutos = process.baseMinutos ?? 116;
+    return Math.max(1, Math.round((amount / maximo) * baseMinutos * 60));
   }
   return Math.max(1, Math.round(process.manualSegundos ?? 30));
 }
