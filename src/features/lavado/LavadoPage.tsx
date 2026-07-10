@@ -84,6 +84,11 @@ function playTandaFinishedBeep() {
   }
 }
 
+function defaultProcessAmount(cfg: LavadoProcesoConfig | null): string {
+  if (!cfg || cfg.maximo <= 0) return "";
+  return String(cfg.maximo);
+}
+
 function tandaDurationLabel(cfg: LavadoProcesoConfig | null, amountRaw: string): string | null {
   if (!cfg) return null;
   const amount = Number(amountRaw);
@@ -265,6 +270,10 @@ export function LavadoPage() {
 
   const printCfg = useMemo(() => snapshot?.procesos.find((p) => p.id === "imprimir") ?? null, [snapshot]);
   const dryCfg = useMemo(() => snapshot?.procesos.find((p) => p.id === "secar") ?? null, [snapshot]);
+
+  useEffect(() => {
+    if (printCfg) setCalcAmount(defaultProcessAmount(printCfg));
+  }, [printCfg?.maximo]);
 
   useEffect(() => {
     if (!profile) return;
@@ -722,10 +731,18 @@ function WarehouseTandaPanel(props: {
   isPending: boolean;
   onStart: (input: { process: LavadoProcesoId; amount: number; station: number }) => void;
 }) {
-  const [printAmount, setPrintAmount] = useState("100000");
+  const [printAmount, setPrintAmount] = useState(() => defaultProcessAmount(props.printCfg));
   const [printStation, setPrintStation] = useState("1");
-  const [dryAmount, setDryAmount] = useState("100000");
+  const [dryAmount, setDryAmount] = useState(() => defaultProcessAmount(props.dryCfg));
   const [dryStation, setDryStation] = useState("1");
+
+  useEffect(() => {
+    if (props.printCfg) setPrintAmount(defaultProcessAmount(props.printCfg));
+  }, [props.printCfg?.maximo]);
+
+  useEffect(() => {
+    if (props.dryCfg) setDryAmount(defaultProcessAmount(props.dryCfg));
+  }, [props.dryCfg?.maximo]);
 
   const warehouseActive = useMemo(
     () => props.active.filter((t) => t.almacen === props.almacen),
