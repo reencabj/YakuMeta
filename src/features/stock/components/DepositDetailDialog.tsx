@@ -36,11 +36,11 @@ export function DepositDetailDialog(props: Props) {
 
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto border-border/80 sm:max-w-xl">
-        <DialogHeader className="space-y-3 border-b border-border/60 pb-4 text-left">
+      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto sm:max-w-xl">
+        <DialogHeader className="space-y-3 border-b border-subtle pb-4 text-left">
           <div className="flex items-start gap-3">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-border bg-muted/50">
-              <Icon className="h-6 w-6 text-primary" />
+            <div className="flex size-12 shrink-0 items-center justify-center rounded-md border border-subtle bg-background-secondary">
+              <Icon className="size-6 text-muted-foreground" />
             </div>
             <div className="min-w-0 flex-1">
               <DialogTitle className="text-xl leading-tight">{d?.nombre ?? "Depósito"}</DialogTitle>
@@ -79,7 +79,7 @@ export function DepositDetailDialog(props: Props) {
               </div>
               <div>
                 <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Faltan</p>
-                <p className="font-mono tabular-nums text-primary">
+                <p className="font-mono tabular-nums text-foreground">
                   {bag.faltanBolsas > 0 ? `${bag.faltanBolsas} (${bag.packs3Faltantes}p+${bag.individualesFaltantes}i)` : "—"}
                 </p>
               </div>
@@ -89,7 +89,7 @@ export function DepositDetailDialog(props: Props) {
 
         <div
           className={cn(
-            "flex flex-col gap-2 border-t border-border/60 pt-4 sm:flex-row sm:flex-wrap",
+            "flex flex-col gap-2 border-t border-subtle pt-4 sm:flex-row sm:flex-wrap",
             "sm:justify-end"
           )}
         >
@@ -113,7 +113,7 @@ export function DepositDetailDialog(props: Props) {
             <Button
               type="button"
               variant="outline"
-              className="gap-2 border-primary/45 text-primary hover:bg-primary/12"
+              className="gap-2"
               onClick={props.onEmptyDeposit}
               disabled={!d?.is_active || !d || d.total_meta_kg <= 0}
             >

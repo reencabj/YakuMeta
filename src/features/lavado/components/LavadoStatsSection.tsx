@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Clock3, Droplets, FlaskConical, Timer } from "lucide-react";
-import { StatTile } from "@/components/shell";
+import { StatGrid, StatTile } from "@/components/shell";
 import { money, num, tandaRemainingSeconds } from "../lavadoFormatters";
 import { formatDuration } from "../lavadoMath";
 import type { LavadoTandaRow } from "../lavadoService";
@@ -27,19 +27,19 @@ export function LavadoStatsSection(props: {
   }, [nextToFinish?.id, nextToFinish?.finaliza_estimado_at]);
 
   return (
-    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <StatTile icon={Timer} label="Lavado activo" value={String(props.active.length)} unit="tandas" tone="slate" dense />
-      <StatTile icon={Droplets} label="En imprimir (activo)" value={`$${money(props.totalInProcess)}`} unit="USD" tone="amber" dense />
-      <StatTile icon={FlaskConical} label="En secado (salida est.)" value={`$${money(props.totalOutEstimated)}`} unit="USD" tone="emerald" dense />
+    <StatGrid columns={4}>
+      <StatTile icon={Timer} label="Tandas activas" value={String(props.active.length)} unit="tandas" tone="slate" dense />
+      <StatTile icon={Droplets} label="En impresión" value={money(props.totalInProcess)} unit="USD" tone="amber" dense />
+      <StatTile icon={FlaskConical} label="En secado (est.)" value={money(props.totalOutEstimated)} unit="USD" tone="emerald" dense />
       <StatTile
         icon={Clock3}
-        label="Próxima tanda en finalizar"
+        label="Próxima finalización"
         value={nextToFinish ? formatDuration(nextRemaining) : "—"}
         unit=""
         tone="rose"
         dense
       />
-    </section>
+    </StatGrid>
   );
 }
 

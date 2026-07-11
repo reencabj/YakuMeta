@@ -3,7 +3,8 @@ import { format } from "date-fns";
 import { Link } from "react-router-dom";
 import { ArrowRight, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { PageHeader, PageShell, PanelCard, SegmentTabs } from "@/components/shell";
+import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeader, PageShell, PanelCard, SegmentTabs, selectClassName } from "@/components/shell";
 import {
   Dialog,
   DialogContent,
@@ -18,7 +19,6 @@ import { useDepositMutations, useDepositsData, type DepositRowModel } from "@/ho
 import { useLocationTypesQuery } from "@/hooks/useLocationTypesQuery";
 import { useRegisterStockIntakeMutation, useStockBatchesQuery } from "@/hooks/useStockBatches";
 import { useStockOperationsMutations } from "@/hooks/useStockOperations";
-import { cn } from "@/lib/utils";
 import { DepositFormDialog } from "./components/DepositFormDialog";
 import { DepositDetailDialog } from "./components/DepositDetailDialog";
 import { DepositsByZone } from "./components/DepositsByZone";
@@ -32,10 +32,6 @@ type StockMainView = "deposits" | "groups";
 type DepositSort = "fullness" | "emptiness" | "nombre";
 type ActiveFilter = "all" | "active" | "inactive";
 type StockFilter = "all" | "with" | "without";
-
-const selectClass = cn(
-  "h-9 rounded-lg border border-border/60 bg-background/50 px-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-);
 
 export function StockPage() {
   const { user, profile } = useAuth();
@@ -103,7 +99,7 @@ export function StockPage() {
   }, [rows, tipoFilter, activeFilter, stockFilter, depositSort]);
 
   return (
-    <PageShell className="gap-8">
+    <PageShell>
       <PageHeader
         title="Stock"
         description={
@@ -154,7 +150,7 @@ export function StockPage() {
           ]}
         />
         {stockMainView === "groups" ? (
-          <p className="max-w-2xl border-l-2 border-primary/40 pl-3 text-xs leading-relaxed text-muted-foreground">
+          <p className="max-w-2xl text-xs leading-relaxed text-muted-foreground">
             Los grupos son conjuntos lógicos de depósitos físicos usados para tratar varios depósitos como una sola unidad
             operativa (capacidad y stock sumados). El movimiento de stock sigue registrándose por lotes y por depósito.
           </p>
@@ -184,7 +180,7 @@ export function StockPage() {
           <div className="mb-5 flex flex-wrap gap-3 text-sm">
             <label className="flex flex-col gap-1">
               <span className="text-xs text-muted-foreground">Tipo</span>
-              <select className={selectClass} value={tipoFilter} onChange={(e) => setTipoFilter(e.target.value)}>
+              <select className={selectClassName} value={tipoFilter} onChange={(e) => setTipoFilter(e.target.value)}>
                 <option value="all">Todos</option>
                 {(typesQ.data ?? []).map((t) => (
                   <option key={t.id} value={t.id}>
@@ -196,7 +192,7 @@ export function StockPage() {
             <label className="flex flex-col gap-1">
               <span className="text-xs text-muted-foreground">Activo</span>
               <select
-                className={selectClass}
+                className={selectClassName}
                 value={activeFilter}
                 onChange={(e) => setActiveFilter(e.target.value as ActiveFilter)}
               >
@@ -208,7 +204,7 @@ export function StockPage() {
             <label className="flex flex-col gap-1">
               <span className="text-xs text-muted-foreground">Stock</span>
               <select
-                className={selectClass}
+                className={selectClassName}
                 value={stockFilter}
                 onChange={(e) => setStockFilter(e.target.value as StockFilter)}
               >
@@ -220,7 +216,7 @@ export function StockPage() {
             <label className="flex flex-col gap-1">
               <span className="text-xs text-muted-foreground">Orden</span>
               <select
-                className={selectClass}
+                className={selectClassName}
                 value={depositSort}
                 onChange={(e) => setDepositSort(e.target.value as DepositSort)}
               >
@@ -231,7 +227,11 @@ export function StockPage() {
             </label>
           </div>
           {isLoading ? (
-            <p className="text-sm text-muted-foreground">Cargando depósitos…</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Skeleton key={i} className="h-24 w-full rounded-lg" />
+              ))}
+            </div>
           ) : filteredSortedDeposits.length === 0 ? (
             <p className="text-sm text-muted-foreground">Ningún depósito con estos filtros.</p>
           ) : (

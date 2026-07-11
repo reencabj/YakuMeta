@@ -191,7 +191,7 @@ export function NewOrderDialog(props: Props) {
             <Textarea id="no-notas" value={notas} onChange={(e) => setNotas(e.target.value)} rows={2} />
           </div>
           {precio !== null ? (
-            <div className="rounded-md border border-border/80 bg-muted/30 px-3 py-2 text-sm">
+            <div className="rounded-md border border-subtle bg-background-secondary px-3 py-2 text-sm">
               <p className="text-muted-foreground">Sugerido</p>
               <p className="font-mono tabular-nums">
                 {precio.toLocaleString("es-AR")} / kg · total{" "}

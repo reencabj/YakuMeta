@@ -12,7 +12,9 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { selectClassName } from "@/components/shell";
 import { useOrderDetailQuery, useUpdateOrderMutation } from "@/hooks/useOrders";
 import { BOLSAS_PER_KG_META } from "@/lib/meta-bags";
 import { cn } from "@/lib/utils";
@@ -20,9 +22,7 @@ import type { CustomerType, OrderState, PaymentType } from "@/types/database";
 import type { OrderWithCreator } from "@/services/orderService";
 import { ACTIVE_ORDER_STATES, estadoBadgeClass, normalizaPrioridad, OrderPriorityStars } from "./orderUtils";
 
-const selectClass = cn(
-  "h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-);
+const selectClass = selectClassName;
 
 const ESTADO_EDITABLE: OrderState[] = ["pendiente", "en_preparacion", "cancelado"];
 
@@ -117,9 +117,13 @@ export function OrderDetailDialog(props: Props) {
         </DialogHeader>
 
         {q.isLoading ? (
-          <p className="text-sm text-muted-foreground">Cargando…</p>
+          <div className="space-y-3">
+            <Skeleton className="h-6 w-48" />
+            <Skeleton className="h-32 w-full rounded-lg" />
+            <Skeleton className="h-24 w-full rounded-lg" />
+          </div>
         ) : q.error ? (
-          <p className="text-sm text-red-400">{(q.error as Error).message}</p>
+          <p className="text-sm text-destructive">{(q.error as Error).message}</p>
         ) : !q.data || !o ? null : (
           <div className="space-y-6 text-sm">
             <div className="flex flex-wrap items-center gap-2">
@@ -138,19 +142,19 @@ export function OrderDetailDialog(props: Props) {
                 className={cn(
                   "rounded-md border px-2 py-0.5 text-xs",
                   o.tipo_cliente === "vip"
-                    ? "border-primary/45 bg-primary/15 text-foreground"
-                    : "border-border/70 bg-muted/20 text-muted-foreground"
+                    ? "border-primary/30 bg-primary-soft text-foreground"
+                    : "border-subtle bg-background-secondary text-muted-foreground"
                 )}
               >
                 {tipoClienteLabel(o.tipo_cliente)}
               </span>
-              <span className="rounded-md border border-border/70 bg-muted/20 px-2 py-0.5 text-xs text-muted-foreground">
+              <span className="rounded-md border border-subtle bg-background-secondary px-2 py-0.5 text-xs text-muted-foreground">
                 {tipoPagoLabel(o.tipo_pago)}
               </span>
             </div>
 
             {!readOnly ? (
-              <section className="rounded-xl border border-border/60 bg-muted/10 p-4 space-y-3">
+              <section className="space-y-3 rounded-lg border border-subtle bg-background-secondary p-4">
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Edición</h3>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-1 sm:col-span-2">
@@ -297,7 +301,7 @@ export function OrderDetailDialog(props: Props) {
               ) : (
                 <ul className="space-y-3">
                   {q.data.deliveries.map((d) => (
-                    <li key={d.id} className="rounded-md border border-border/60 bg-muted/15 p-3">
+                    <li key={d.id} className="rounded-md border border-subtle bg-background-secondary p-3">
                       <p className="text-xs text-muted-foreground">
                         {formatIsoSafe(d.entregado_at, "dd/MM/yyyy HH:mm", { locale: es })} · $
                         {Number(d.dinero_recibido).toLocaleString("es-AR")} · {d.recibio_dinero_nombre}
@@ -350,7 +354,7 @@ export function OrderDetailDialog(props: Props) {
                     <Button
                       type="button"
                       variant="ghost"
-                      className="text-red-400"
+                      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                       onClick={() => props.onRequestCancel?.(o)}
                     >
                       Cancelar pedido

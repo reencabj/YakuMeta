@@ -73,8 +73,8 @@ export const ActiveTandaCard = memo(function ActiveTandaCard(props: {
   return (
     <div
       className={cn(
-        "flex min-h-[9.375rem] h-full w-full min-w-0 flex-col overflow-hidden rounded-md border border-border/60 bg-muted/15 p-2.5",
-        done && "animate-pulse border-emerald-400/50 bg-emerald-500/10 ring-1 ring-inset ring-emerald-400/35"
+        "flex h-full min-h-[9rem] w-full min-w-0 flex-col overflow-hidden rounded-md border border-subtle bg-surface p-2.5",
+        done && "border-success/40 bg-success/5"
       )}
     >
       <div className="shrink-0 space-y-1">
@@ -88,7 +88,7 @@ export const ActiveTandaCard = memo(function ActiveTandaCard(props: {
         <p
           className={cn(
             "max-w-full truncate text-center font-mono text-base font-semibold tabular-nums leading-none",
-            done ? "text-emerald-400" : "text-foreground"
+            done ? "text-success" : "text-foreground"
           )}
         >
           {formatDuration(remaining)}

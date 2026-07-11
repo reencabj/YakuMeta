@@ -1,46 +1,43 @@
-import { useEffect, useState } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Outlet } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import {
-  ClipboardList,
-  LayoutDashboard,
-  Package,
-  Settings,
-  BarChart3,
-  Banknote,
-  CircleDollarSign,
-  ScrollText,
-  LogOut,
-} from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
-import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Sidebar } from "@/components/layout/Sidebar";
+import { Topbar, type TopbarMetric } from "@/components/layout/Topbar";
 import { useAppSettingsQuery } from "@/hooks/useAppSettingsQuery";
 import { useGlobalStockSummary, usePedidosKpiQuery } from "@/hooks/useGlobalStockSummary";
-import { cn } from "@/lib/utils";
 import { fetchLavadoTandasActivas } from "@/features/lavado/lavadoService";
 import { lavadoQueryKeys } from "@/features/lavado/lavadoQueryKeys";
-import { lavadoAlmacenLabel, PROCESS_META } from "@/features/lavado/lavadoConstants";
 import { formatDuration } from "@/features/lavado/lavadoMath";
 import { fetchLavadoPedidos } from "@/features/lavado-pedidos/lavadoPedidosService";
-import { deliveryCountdownLabel } from "@/features/lavado-pedidos/lavadoPedidosMath";
 
-/** Título por defecto (login aún no carga settings; coincide con index.html). */
 const DEFAULT_APP_TITLE = "Yakuza Meta Stock";
+const SIDEBAR_COLLAPSED_KEY = "yakuza-sidebar-collapsed";
 
-const nav = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
-  { to: "/pedidos", label: "Pedidos", icon: ClipboardList },
-  { to: "/stock", label: "Stock", icon: Package },
-  { to: "/estadisticas", label: "Estadísticas", icon: BarChart3 },
-  { to: "/historial", label: "Historial", icon: ScrollText },
-  { to: "/lavado", label: "Lavado", icon: CircleDollarSign },
-  { to: "/lavado-pedidos", label: "Pedidos Lavado", icon: Banknote },
-  { to: "/admin", label: "Admin", icon: Settings, adminOnly: true },
-];
+function formatCompactMoney(value: number) {
+  return new Intl.NumberFormat("es-AR", {
+    style: "currency",
+    currency: "ARS",
+    notation: "compact",
+    maximumFractionDigits: 1,
+  })
+    .format(value)
+    .replace(/\$\s+/u, "$");
+}
 
 export function AppShell() {
   const { profile, signOut } = useAuth();
   const [now, setNow] = useState(Date.now());
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+
   const settingsQ = useAppSettingsQuery();
   const stock = useGlobalStockSummary();
   const pedidosKpi = usePedidosKpiQuery();
@@ -60,8 +57,20 @@ export function AppShell() {
     return () => window.clearInterval(id);
   }, []);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, sidebarCollapsed ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  }, [sidebarCollapsed]);
+
   const appTitle = settingsQ.data?.app_name?.trim() || DEFAULT_APP_TITLE;
-  const tiradasNecesarias = pedidosKpi.data?.tiradas_faltantes;
+
+  useEffect(() => {
+    document.title = appTitle;
+  }, [appTitle]);
+
   const lavadoActive = (lavadoTandasQ.data ?? []).filter((t) => t.estado === "activo");
   const nextLavado = [...lavadoActive].sort(
     (a, b) => new Date(a.finaliza_estimado_at).getTime() - new Date(b.finaliza_estimado_at).getTime()
@@ -70,176 +79,108 @@ export function AppShell() {
     ["recibido", "dinero_recibido", "dinero_entregado", "en_espera", "listo_para_entregar"].includes(p.estado)
   );
   const dineroPorEntregar = lavadoPedidosActive.reduce((s, p) => s + Number(p.monto_entregar), 0);
-  const nextLavadoPedido = lavadoPedidosActive
-    .filter((p) => p.tipo_pago === "plazo_7_dias" && p.fecha_entrega)
-    .sort((a, b) => new Date(`${a.fecha_entrega}T00:00:00`).getTime() - new Date(`${b.fecha_entrega}T00:00:00`).getTime())[0];
+  const proximaTandaSegundos = nextLavado
+    ? Math.max(0, Math.round((new Date(nextLavado.finaliza_estimado_at).getTime() - now) / 1000))
+    : null;
 
-  useEffect(() => {
-    document.title = appTitle;
-  }, [appTitle]);
+  const metrics = useMemo<TopbarMetric[]>(
+    () => [
+      {
+        id: "stock",
+        label: "Stock disponible",
+        value: stock.data?.total_meta_kilos?.toFixed(2) ?? "—",
+        unit: "kg",
+        loading: stock.isLoading,
+      },
+      {
+        id: "pedidos",
+        label: "Pedidos activos",
+        value:
+          pedidosKpi.data?.total_pedidos_abiertos_kg != null
+            ? Number(pedidosKpi.data.total_pedidos_abiertos_kg).toFixed(2)
+            : "—",
+        unit: "kg",
+        loading: pedidosKpi.isLoading,
+        tone: "warning",
+      },
+      {
+        id: "faltante",
+        label: "Falta preparar",
+        value:
+          pedidosKpi.data?.faltante_preparar_kg != null
+            ? Number(pedidosKpi.data.faltante_preparar_kg).toFixed(2)
+            : "—",
+        unit: "kg",
+        loading: pedidosKpi.isLoading,
+        tone: "danger",
+      },
+      {
+        id: "prox-tanda",
+        label: "Próx. tanda",
+        value: proximaTandaSegundos != null ? formatDuration(proximaTandaSegundos) : "—",
+        loading: lavadoTandasQ.isLoading,
+        tone: "info",
+      },
+      {
+        id: "lavado-activo",
+        label: "Lavado activo",
+        value: String(lavadoActive.length),
+        unit: "tandas",
+        loading: lavadoTandasQ.isLoading,
+        tone: "success",
+      },
+      {
+        id: "lavado-entregar",
+        label: "Lavado a entregar",
+        value: formatCompactMoney(dineroPorEntregar),
+        loading: lavadoPedidosQ.isLoading,
+        tone: "success",
+      },
+    ],
+    [
+      stock.data,
+      stock.isLoading,
+      pedidosKpi.data,
+      pedidosKpi.isLoading,
+      proximaTandaSegundos,
+      lavadoActive.length,
+      lavadoTandasQ.isLoading,
+      lavadoPedidosQ.isLoading,
+      dineroPorEntregar,
+    ]
+  );
+
+  const sidebarProps = {
+    collapsed: sidebarCollapsed,
+    isAdmin: profile?.role === "admin",
+    displayName: profile?.display_name,
+    username: profile?.username,
+    onSignOut: () => void signOut(),
+    onToggleCollapse: () => setSidebarCollapsed((v) => !v),
+  };
 
   return (
-    <div className="flex h-dvh max-h-dvh overflow-hidden">
-      <aside className="hidden h-full w-56 shrink-0 flex-col border-r border-border/80 bg-gradient-to-b from-card/90 to-muted/20 p-4 md:flex">
-        <div className="flex flex-col items-center gap-2 py-4">
-          <img src="/logo.png" alt="logo" className="h-24 w-24 object-contain" />
-          <h1 className="text-white text-base font-semibold leading-tight">Yakuza Meta</h1>
-        </div>
-        <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden pr-1">
-          {nav
-            .filter((item) => !item.adminOnly || profile?.role === "admin")
-            .map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.end}
-                className={({ isActive }) =>
-                  cn(
-                    "flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors",
-                    isActive
-                      ? "bg-primary/15 text-primary shadow-sm ring-1 ring-primary/20"
-                      : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-                  )
-                }
-              >
-                <item.icon className="size-4" />
-                {item.label}
-              </NavLink>
-            ))}
-        </nav>
-        <div className="shrink-0 space-y-2 border-t border-border pt-4">
-          <p className="truncate px-2 text-xs text-muted-foreground">
-            {profile?.display_name ?? profile?.username ?? "Usuario"}
-            {profile?.role === "admin" ? (
-              <span className="ml-2 rounded bg-primary/20 px-1.5 py-0.5 text-[10px] text-primary">
-                admin
-              </span>
-            ) : null}
-          </p>
-          <Button variant="outline" size="sm" className="w-full" onClick={() => void signOut()}>
-            <LogOut className="size-4" />
-            Salir
-          </Button>
-        </div>
-      </aside>
+    <div className="flex h-dvh max-h-dvh bg-background">
+      <Sidebar {...sidebarProps} className="hidden md:flex" />
+
+      <Dialog open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+        <DialogContent
+          showClose={false}
+          className="fixed left-0 top-0 h-dvh max-h-dvh w-sidebar max-w-[85vw] translate-x-0 translate-y-0 rounded-none border-0 border-r border-subtle bg-background-secondary p-0 shadow-none"
+        >
+          <Sidebar {...sidebarProps} onNavigate={() => setMobileNavOpen(false)} onToggleCollapse={undefined} />
+        </DialogContent>
+      </Dialog>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="z-10 shrink-0 border-b border-border/80 bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80">
-          <div className="flex flex-wrap items-center gap-3 px-4 py-3">
-            <div className="flex min-w-0 flex-1 flex-wrap gap-2">
-              <MetricPill
-                label="Meta total"
-                value={stock.data?.total_meta_kilos?.toFixed(2) ?? "—"}
-                loading={stock.isLoading}
-              />
-              <MetricPill
-                label="Pedidos en curso"
-                value={
-                  pedidosKpi.data?.total_pedidos_abiertos_kg != null
-                    ? Number(pedidosKpi.data.total_pedidos_abiertos_kg).toFixed(2)
-                    : "—"
-                }
-                loading={pedidosKpi.isLoading}
-                tone="warning"
-              />
-              <MetricPill
-                label="Tiradas necesarias"
-                value={tiradasNecesarias != null ? String(tiradasNecesarias) : "—"}
-                loading={pedidosKpi.isLoading}
-                tone="success"
-                unit="tiradas"
-              />
-              <MetricPill
-                label="Falta preparar"
-                value={pedidosKpi.data?.faltante_preparar_kg != null ? Number(pedidosKpi.data.faltante_preparar_kg).toFixed(2) : "—"}
-                loading={pedidosKpi.isLoading}
-                tone="danger"
-              />
-            </div>
-            <div className="flex min-w-0 flex-wrap gap-2 border-l border-border/70 pl-3">
-              <MetricPill
-                label="Lavado activo"
-                value={String(lavadoActive.length)}
-                loading={lavadoTandasQ.isLoading}
-                unit="tandas"
-                tone="success"
-              />
-              <MetricPill
-                label="Próx. tanda"
-                value={
-                  nextLavado
-                    ? `${lavadoAlmacenLabel(nextLavado.almacen)} · ${PROCESS_META[nextLavado.proceso].label} E${nextLavado.estacion}: ${formatDuration(Math.max(0, Math.round((new Date(nextLavado.finaliza_estimado_at).getTime() - now) / 1000)))}`
-                    : "—"
-                }
-                loading={lavadoTandasQ.isLoading}
-                unit=""
-                tone="warning"
-              />
-              <MetricPill
-                label="Lavado a entregar"
-                value={formatCompactMoney(dineroPorEntregar)}
-                loading={lavadoPedidosQ.isLoading}
-                unit=""
-                tone="success"
-              />
-              <MetricPill
-                label="Próx. entrega"
-                value={nextLavadoPedido ? deliveryCountdownLabel(nextLavadoPedido.tipo_pago, nextLavadoPedido.fecha_entrega) : "—"}
-                loading={lavadoPedidosQ.isLoading}
-                unit=""
-                tone="warning"
-              />
-            </div>
-          </div>
-        </header>
+        <Topbar metrics={metrics} onMenuClick={() => setMobileNavOpen(true)} />
 
-        <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-gradient-to-b from-background via-background to-muted/15 p-4 md:p-6">
-          <Outlet />
+        <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+          <div className="mx-auto w-full max-w-content px-4 py-5 md:px-6 md:py-6">
+            <Outlet />
+          </div>
         </main>
       </div>
-    </div>
-  );
-}
-
-function formatCompactMoney(value: number) {
-  return new Intl.NumberFormat("es-AR", {
-    style: "currency",
-    currency: "ARS",
-    notation: "compact",
-    maximumFractionDigits: 1,
-  })
-    .format(value)
-    .replace(/\$\s+/u, "$");
-}
-
-function MetricPill(props: {
-  label: string;
-  value: string;
-  loading?: boolean;
-  tone?: "default" | "success" | "warning" | "danger";
-  unit?: string;
-}) {
-  const tone =
-    props.tone === "success"
-      ? "border-primary/40 bg-primary/12"
-      : props.tone === "warning"
-        ? "border-primary/35 bg-primary/10"
-        : props.tone === "danger"
-          ? "border-primary/45 bg-primary/16"
-          : "border-border bg-card";
-
-  return (
-    <div
-      className={cn(
-        "min-w-[132px] rounded-xl border border-border/80 bg-gradient-to-br from-card to-muted/20 px-3 py-2.5 shadow-sm",
-        tone
-      )}
-    >
-      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{props.label}</p>
-      <p className="mt-0.5 font-semibold tabular-nums text-sm text-foreground">
-        {props.loading ? "…" : props.value}
-        <span className="ml-1 text-[11px] font-normal text-muted-foreground">{props.unit ?? "kg"}</span>
-      </p>
     </div>
   );
 }

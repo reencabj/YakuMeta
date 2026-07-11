@@ -68,10 +68,10 @@ export function StorageGroupsSection(props: Props) {
 
   return (
     <div className="space-y-6">
-      <Card className="border-primary/20 bg-primary/5">
+      <Card className="border-subtle bg-surface">
         <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Layers className="h-5 w-5 shrink-0 text-primary" />
+          <CardTitle className="flex items-center gap-2 text-section-title">
+            <Layers className="size-4 shrink-0 text-muted-foreground" />
             Grupos = unidad lógica de almacenamiento
           </CardTitle>
           <CardDescription className="text-sm leading-relaxed">
@@ -487,12 +487,12 @@ function MetricPill(props: { label: string; value: string; highlight?: boolean }
   return (
     <div
       className={cn(
-        "rounded-lg border border-border/80 bg-card px-2 py-1.5 text-center",
-        props.highlight && "border-primary/30 bg-primary/10"
+        "rounded-md border border-subtle bg-surface px-2 py-1.5 text-center",
+        props.highlight && "border-warning/30 bg-warning/10"
       )}
     >
-      <div className="text-[10px] uppercase tracking-wide text-muted-foreground leading-tight">{props.label}</div>
-      <div className="font-mono text-sm tabular-nums text-foreground">{props.value}</div>
+      <div className="text-[10px] text-muted-foreground leading-tight">{props.label}</div>
+      <div className="text-sm tabular-nums font-medium text-foreground">{props.value}</div>
     </div>
   );
 }

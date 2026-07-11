@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import { DollarSign, Droplets, FlaskConical, Timer } from "lucide-react";
-import { PanelCard, StatTile } from "@/components/shell";
+import { PanelCard, StatGrid, StatTile } from "@/components/shell";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { LAVADO_ALMACENES } from "../lavadoConstants";
 import { asPct, money, moneyCompact, num } from "../lavadoFormatters";
@@ -55,46 +55,45 @@ export function LavadoMoneyCounterPanel(props: {
         <p className="text-sm text-muted-foreground">Cargando totales…</p>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col gap-4">
-          <section className="grid shrink-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <StatGrid columns={4}>
             <StatTile
               icon={DollarSign}
-              label="Ingresado (imprimir)"
-              value={`$${money(ingresado)}`}
+              label="Ingresado"
+              value={money(ingresado)}
               unit="USD"
-              hint={`${imprimirCompletadas} tandas de impresión`}
+              hint={`${imprimirCompletadas} tandas impresión`}
               tone="amber"
               dense
             />
             <StatTile
               icon={FlaskConical}
-              label="Sacado (secado)"
-              value={`$${money(salida)}`}
+              label="Sacado"
+              value={money(salida)}
               unit="USD"
-              hint={`${secarCompletadas} tandas de secado`}
+              hint={`${secarCompletadas} tandas secado`}
               tone="emerald"
               dense
             />
             <StatTile
               icon={Droplets}
-              label="Pérdida acumulada"
-              value={`$${money(perdida)}`}
+              label="Pérdida"
+              value={money(perdida)}
               unit={ingresado > 0 ? `${asPct(perdidaPct / 100)}%` : ""}
               tone="rose"
               dense
             />
             <StatTile
               icon={Timer}
-              label="En curso ahora"
-              value={`$${money(ingresadoActivo)}`}
+              label="En curso"
+              value={money(ingresadoActivo)}
               unit={`→ ${moneyCompact(salidaActivo)}`}
-              hint="Imprimir activo → secado activo (salida est.)"
+              hint="Imprimir activo → secado est."
               tone="slate"
               dense
             />
-          </section>
+          </StatGrid>
 
-          <div className="overflow-x-auto rounded-md border border-border/60">
-            <Table>
+          <Table bordered>
               <TableHeader>
                 <TableRow>
                   <TableHead>Almacén</TableHead>
@@ -110,9 +109,7 @@ export function LavadoMoneyCounterPanel(props: {
                   <TableRow key={row.id}>
                     <TableCell className="font-medium">{row.label}</TableCell>
                     <TableCell className="text-right tabular-nums">${money(row.ingresado)}</TableCell>
-                    <TableCell className="text-right tabular-nums text-emerald-600 dark:text-emerald-400">
-                      ${money(row.salida)}
-                    </TableCell>
+                    <TableCell className="text-right tabular-nums text-success">${money(row.salida)}</TableCell>
                     <TableCell className="text-right tabular-nums text-muted-foreground">${money(row.perdida)}</TableCell>
                     <TableCell className="text-right tabular-nums text-xs">
                       {row.imprimirCompletadas} / {row.secarCompletadas}
@@ -126,7 +123,6 @@ export function LavadoMoneyCounterPanel(props: {
                 ))}
               </TableBody>
             </Table>
-          </div>
         </div>
       )}
     </PanelCard>

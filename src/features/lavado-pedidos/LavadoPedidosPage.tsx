@@ -1,9 +1,20 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Banknote, CalendarClock, ClipboardCopy, Filter, Settings, Timer, WalletCards } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
-import { PageHeader, PageShell, PanelCard, StatTile } from "@/components/shell";
+import {
+  CollapsiblePanel,
+  FilterBar,
+  PageHeader,
+  PageShell,
+  PanelCard,
+  StatGrid,
+  StatTile,
+  TablePagination,
+  selectClassName,
+} from "@/components/shell";
 import { Button } from "@/components/ui/button";
+import { Badge as UiBadge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -52,19 +63,16 @@ function userName(user?: { username?: string | null; display_name?: string | nul
   return user?.display_name?.trim() || user?.username || "—";
 }
 
-function estadoClass(value: LavadoPedidoEstado) {
-  if (value === "completado") return "border-emerald-500/40 bg-emerald-500/12 text-emerald-300";
-  if (value === "cancelado") return "border-red-500/35 bg-red-500/10 text-red-300";
-  if (value === "listo_para_entregar" || value === "dinero_entregado") {
-    return "border-primary/45 bg-primary/16 text-foreground";
-  }
-  return "border-border/70 bg-muted/25 text-muted-foreground";
+function estadoBadgeVariant(value: LavadoPedidoEstado): "success" | "danger" | "violet" | "info" | "secondary" {
+  if (value === "completado") return "success";
+  if (value === "cancelado") return "danger";
+  if (value === "listo_para_entregar" || value === "dinero_entregado") return "violet";
+  if (value === "en_espera" || value === "dinero_recibido") return "info";
+  return "secondary";
 }
 
-function paymentClass(value: LavadoPedidoTipoPago) {
-  return value === "instantaneo"
-    ? "border-primary/45 bg-primary/15 text-foreground"
-    : "border-amber-500/35 bg-amber-500/10 text-amber-200";
+function paymentBadgeVariant(value: LavadoPedidoTipoPago): "violet" | "warning" {
+  return value === "instantaneo" ? "violet" : "warning";
 }
 
 export function LavadoPedidosPage() {
@@ -150,6 +158,8 @@ export function LavadoPedidosPage() {
   const [toDate, setToDate] = useState("");
   const [onlyToday, setOnlyToday] = useState(false);
   const [onlyOverdue, setOnlyOverdue] = useState(false);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyPageSize, setHistoryPageSize] = useState(25);
 
   const config = configQ.data;
   const pedidos = useMemo(() => pedidosQ.data ?? [], [pedidosQ.data]);
@@ -189,6 +199,15 @@ export function LavadoPedidosPage() {
       return true;
     });
   }, [fromDate, history, historySearch, historyState, historyType, toDate]);
+
+  useEffect(() => {
+    setHistoryPage(1);
+  }, [historySearch, historyState, historyType, fromDate, toDate]);
+
+  const historyPaged = useMemo(() => {
+    const start = (historyPage - 1) * historyPageSize;
+    return historyFiltered.slice(start, start + historyPageSize);
+  }, [historyFiltered, historyPage, historyPageSize]);
 
   const summary = useMemo(() => {
     const sevenDue = active.filter(
@@ -239,28 +258,26 @@ export function LavadoPedidosPage() {
         description="Control operativo de pedidos de lavado: comisiones, entregas, estados, vencimientos y ganancia real."
       />
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+      <StatGrid columns={6}>
         <StatTile dense icon={Banknote} label="Pedidos hechos" value={String(summary.pedidosHechos)} unit="pedidos" tone="slate" />
         <StatTile dense icon={WalletCards} label="Plata ingresada" value={money(summary.plataIngresada)} unit="" tone="amber" />
         <StatTile dense icon={Banknote} label="Ganancia acumulada" value={money(summary.gananciaReal)} unit="" tone="emerald" />
-        <StatTile dense icon={WalletCards} label="Dinero por entregar" value={money(summary.dineroPorEntregar)} unit="" tone="slate" />
+        <StatTile dense icon={WalletCards} label="Por entregar" value={money(summary.dineroPorEntregar)} unit="" tone="slate" />
         <StatTile dense icon={Timer} label="Próxima entrega" value={summary.proximaEntrega} unit="" tone="amber" />
         <StatTile dense icon={CalendarClock} label="Hoy / vencidos" value={String(summary.porEntregar)} unit="pedidos" tone="rose" emphasize />
-      </section>
+      </StatGrid>
 
-      <section className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,0.65fr)]">
-        <PanelCard icon={Banknote} title="Crear pedido rápido" description="Calcula automáticamente entrega, descuento, pérdida del script y ganancia real.">
-          <div className="grid gap-4 2xl:grid-cols-[minmax(260px,0.85fr)_minmax(0,1.15fr)]">
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.55fr)]">
+        <PanelCard icon={Banknote} title="Crear pedido" description="Comisión, script, entrega y ganancia se calculan automáticamente.">
+          <div className="grid gap-4 lg:grid-cols-2">
             <div className="space-y-3">
-              <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-1">
-                <div className="space-y-1">
-                  <Label>Org/Persona</Label>
-                  <Input value={orgPersona} onChange={(e) => setOrgPersona(e.target.value)} placeholder="Nombre u organización" />
-                </div>
-                <div className="space-y-1">
-                  <Label>Cantidad a lavar</Label>
-                  <Input value={monto} onChange={(e) => setMonto(e.target.value)} inputMode="decimal" />
-                </div>
+              <div className="space-y-1">
+                <Label>Org/Persona</Label>
+                <Input value={orgPersona} onChange={(e) => setOrgPersona(e.target.value)} placeholder="Nombre u organización" />
+              </div>
+              <div className="space-y-1">
+                <Label>Cantidad a lavar</Label>
+                <Input value={monto} onChange={(e) => setMonto(e.target.value)} inputMode="decimal" />
               </div>
               <div className="space-y-1">
                 <Label>Tipo de pago</Label>
@@ -280,55 +297,60 @@ export function LavadoPedidosPage() {
               </div>
               <div className="space-y-1">
                 <Label>Notas internas</Label>
-                <Textarea className="min-h-[88px]" value={notas} onChange={(e) => setNotas(e.target.value)} rows={3} />
+                <Textarea className="min-h-[72px]" value={notas} onChange={(e) => setNotas(e.target.value)} rows={3} />
               </div>
             </div>
 
-            <div className="flex min-h-full flex-col justify-between gap-3 rounded-xl border border-border/60 bg-muted/20 p-4">
-              <div className="grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-2">
-                <Metric label="Comisión aplicada" value={calc ? pct(calc.comisionPct) : "—"} />
-                <Metric label="Script come" value={calc ? pct(calc.scriptPct) : "—"} />
-                <Metric label="Monto a entregar" value={calc ? money(calc.montoEntregar) : "—"} strong />
-                <Metric label="Total descontado" value={calc ? money(calc.descuentoTotal) : "—"} />
-                <Metric label="Pérdida script" value={calc ? money(calc.perdidaScript) : "—"} />
-                <Metric label="Ganancia real banda" value={calc ? money(calc.gananciaRealBanda) : "—"} strong />
-              </div>
-              <div className="rounded-lg border border-border/60 bg-background/50 px-3 py-2 text-xs text-muted-foreground">
+            <div className="flex flex-col justify-between gap-3 rounded-md border border-subtle bg-background-secondary p-4">
+              <dl className="space-y-2.5 text-sm">
+                <SummaryRow label="Comisión" value={calc ? pct(calc.comisionPct) : "—"} />
+                <SummaryRow label="Script consume" value={calc ? pct(calc.scriptPct) : "—"} />
+                <SummaryRow label="Monto a entregar" value={calc ? money(calc.montoEntregar) : "—"} highlight />
+                <SummaryRow label="Descuento total" value={calc ? money(calc.descuentoTotal) : "—"} />
+                <SummaryRow label="Pérdida script" value={calc ? money(calc.perdidaScript) : "—"} />
+                <SummaryRow label="Ganancia real" value={calc ? money(calc.gananciaRealBanda) : "—"} highlight />
+              </dl>
+              <p className="text-xs text-muted-foreground">
                 Fecha entrega:{" "}
                 <span className="font-medium text-foreground">
-                  {tipoPago === "instantaneo" ? "Inmediata / sin fecha" : previewDeliveryDate ? new Date(`${previewDeliveryDate}T00:00:00`).toLocaleDateString("es-AR") : "—"}
+                  {tipoPago === "instantaneo"
+                    ? "Inmediata"
+                    : previewDeliveryDate
+                      ? new Date(`${previewDeliveryDate}T00:00:00`).toLocaleDateString("es-AR")
+                      : "—"}
                 </span>
-              </div>
-              <div className="flex justify-end border-t border-border/50 pt-3">
-                <Button
-                  className="min-w-36"
-                  type="button"
-                  disabled={createM.isPending || !config || !orgPersona.trim() || !Number.isFinite(montoNum) || montoNum <= 0}
-                  onClick={() =>
-                    createM.mutate({
-                      orgPersona,
-                      monto: montoNum,
-                      tipoPago,
-                      notas: notas.trim() ? notas.trim() : null,
-                    })
-                  }
-                >
-                  Crear pedido
-                </Button>
-              </div>
+              </p>
+              <Button
+                className="w-full"
+                type="button"
+                disabled={createM.isPending || !config || !orgPersona.trim() || !Number.isFinite(montoNum) || montoNum <= 0}
+                onClick={() =>
+                  createM.mutate({
+                    orgPersona,
+                    monto: montoNum,
+                    tipoPago,
+                    notas: notas.trim() ? notas.trim() : null,
+                  })
+                }
+              >
+                Crear pedido
+              </Button>
             </div>
           </div>
         </PanelCard>
 
-        {config ? (
-          <LavadoPedidosConfigCard
-            config={config}
-            canEdit={profile?.role === "admin"}
-            saving={configM.isPending}
-            onSave={(patch) => configM.mutate(patch)}
-          />
-        ) : null}
+        <div className="rounded-md border border-subtle bg-surface p-4 xl:hidden">
+          <p className="text-xs text-muted-foreground">Resumen rápido</p>
+          <p className="mt-2 text-2xl font-semibold tabular-nums">{calc ? money(calc.gananciaRealBanda) : "—"}</p>
+          <p className="text-xs text-muted-foreground">Ganancia estimada del pedido</p>
+        </div>
       </section>
+
+      {config && profile?.role === "admin" ? (
+        <CollapsiblePanel icon={Settings} title="Configuración" description="Comisiones y plazos para nuevos pedidos.">
+          <LavadoPedidosConfigForm config={config} saving={configM.isPending} onSave={(patch) => configM.mutate(patch)} />
+        </CollapsiblePanel>
+      ) : null}
 
       <PanelCard
         icon={Timer}
@@ -346,7 +368,7 @@ export function LavadoPedidosPage() {
         }
       >
         <div className="overflow-auto">
-          <Table>
+          <Table bordered>
             <TableHeader>
               <TableRow>
                 <TableHead>Org/Persona</TableHead>
@@ -387,31 +409,30 @@ export function LavadoPedidosPage() {
         </div>
       </PanelCard>
 
-      <PanelCard icon={Filter} title="Historial" description="Pedidos completados y cancelados, con filtros para revisar cierres.">
-        <div className="mb-4 grid gap-3 md:grid-cols-5">
-          <Input placeholder="Org/Persona…" value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} />
-          <select className="h-9 rounded-md border border-input bg-background px-3 text-sm" value={historyType} onChange={(e) => setHistoryType(e.target.value as LavadoPedidoTipoPago | "all")}>
+      <PanelCard icon={Filter} title="Historial" description="Completados y cancelados." flush>
+        <FilterBar className="mb-4">
+          <Input className="h-9 min-w-[160px] flex-1" placeholder="Org/Persona…" value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} />
+          <select className={selectClassName} value={historyType} onChange={(e) => setHistoryType(e.target.value as LavadoPedidoTipoPago | "all")}>
             {PAYMENT_TYPES.map((t) => (
               <option key={t} value={t}>
                 {t === "all" ? "Todos los tipos" : paymentLabel(t)}
               </option>
             ))}
           </select>
-          <select className="h-9 rounded-md border border-input bg-background px-3 text-sm" value={historyState} onChange={(e) => setHistoryState(e.target.value as LavadoPedidoEstado | "all")}>
+          <select className={selectClassName} value={historyState} onChange={(e) => setHistoryState(e.target.value as LavadoPedidoEstado | "all")}>
             {HISTORY_STATES.map((s) => (
               <option key={s} value={s}>
                 {s === "all" ? "Todos los estados" : estadoLabel(s)}
               </option>
             ))}
           </select>
-          <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} title="Desde" />
-          <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} title="Hasta" />
-        </div>
-        <div className="max-h-[420px] overflow-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Fecha</TableHead>
+          <Input type="date" className="h-9 w-[150px]" value={fromDate} onChange={(e) => setFromDate(e.target.value)} title="Desde" />
+          <Input type="date" className="h-9 w-[150px]" value={toDate} onChange={(e) => setToDate(e.target.value)} title="Hasta" />
+        </FilterBar>
+        <Table bordered>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Fecha</TableHead>
                 <TableHead>Org/Persona</TableHead>
                 <TableHead>Tipo</TableHead>
                 <TableHead>Cantidad</TableHead>
@@ -423,18 +444,18 @@ export function LavadoPedidosPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {historyFiltered.map((p) => (
+              {historyPaged.map((p) => (
                 <TableRow key={p.id}>
                   <TableCell className="text-xs text-muted-foreground">{new Date(p.fecha_creacion).toLocaleString("es-AR")}</TableCell>
                   <TableCell className="font-medium">{p.org_persona}</TableCell>
                   <TableCell>
-                    <Badge className={paymentClass(p.tipo_pago)}>{paymentLabel(p.tipo_pago)}</Badge>
+                    <UiBadge variant={paymentBadgeVariant(p.tipo_pago)}>{paymentLabel(p.tipo_pago)}</UiBadge>
                   </TableCell>
                   <TableCell className="font-mono tabular-nums">{money(Number(p.monto))}</TableCell>
                   <TableCell className="font-mono tabular-nums">{money(Number(p.monto_entregar))}</TableCell>
                   <TableCell className="font-mono tabular-nums">{money(Number(p.ganancia_real_banda))}</TableCell>
                   <TableCell>
-                    <Badge className={estadoClass(p.estado)}>{estadoLabel(p.estado)}</Badge>
+                    <UiBadge variant={estadoBadgeVariant(p.estado)}>{estadoLabel(p.estado)}</UiBadge>
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
                     {userName(p.creado_por)} / {userName(p.completado_por)}
@@ -468,9 +489,29 @@ export function LavadoPedidosPage() {
               ) : null}
             </TableBody>
           </Table>
-        </div>
+        <TablePagination
+          page={historyPage}
+          pageSize={historyPageSize}
+          total={historyFiltered.length}
+          onPageChange={setHistoryPage}
+          onPageSizeChange={(size) => {
+            setHistoryPageSize(size);
+            setHistoryPage(1);
+          }}
+        />
       </PanelCard>
     </PageShell>
+  );
+}
+
+function SummaryRow(props: { label: string; value: string; highlight?: boolean }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <dt className="text-muted-foreground">{props.label}</dt>
+      <dd className={cn("tabular-nums", props.highlight ? "text-base font-semibold text-foreground" : "text-sm font-medium")}>
+        {props.value}
+      </dd>
+    </div>
   );
 }
 
@@ -480,19 +521,32 @@ function sortActive(a: LavadoPedidoWithUsers, b: LavadoPedidoWithUsers) {
   return ad - bd || new Date(a.fecha_creacion).getTime() - new Date(b.fecha_creacion).getTime();
 }
 
-function Metric(props: { label: string; value: string; strong?: boolean }) {
+function LavadoPedidosConfigForm(props: {
+  config: LavadoPedidoConfigRow;
+  saving: boolean;
+  onSave: (patch: Database["public"]["Tables"]["lavado_pedidos_config"]["Update"]) => void;
+}) {
+  const [form, setForm] = useState(props.config);
+  useEffect(() => setForm(props.config), [props.config]);
+
   return (
-    <div className="rounded-lg border border-border/50 bg-background/35 px-3 py-2">
-      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{props.label}</p>
-      <p className={cn("mt-0.5 font-mono tabular-nums", props.strong ? "text-lg font-semibold text-foreground" : "text-sm")}>
-        {props.value}
-      </p>
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <PercentInput label="Comisión instantánea" value={form.comision_instantaneo} onChange={(v) => setForm((f) => ({ ...f, comision_instantaneo: v }))} />
+        <PercentInput label="Comisión 7 días" value={form.comision_7_dias} onChange={(v) => setForm((f) => ({ ...f, comision_7_dias: v }))} />
+        <PercentInput label="Script come" value={form.script_porcentaje} onChange={(v) => setForm((f) => ({ ...f, script_porcentaje: v }))} />
+        <div className="space-y-1">
+          <Label className="text-xs">Días entrega plazo</Label>
+          <Input type="number" value={form.dias_entrega_plazo} onChange={(e) => setForm((f) => ({ ...f, dias_entrega_plazo: Number(e.target.value) }))} />
+        </div>
+      </div>
+      <div className="flex justify-end">
+        <Button type="button" disabled={props.saving} onClick={() => props.onSave(form)}>
+          {props.saving ? "Guardando…" : "Guardar configuración"}
+        </Button>
+      </div>
     </div>
   );
-}
-
-function Badge(props: { children: ReactNode; className?: string }) {
-  return <span className={cn("inline-flex rounded-md border px-1.5 py-0.5 text-[10px] uppercase", props.className)}>{props.children}</span>;
 }
 
 function ActivePedidoRow(props: {
@@ -509,7 +563,7 @@ function ActivePedidoRow(props: {
   const dueTone = p.tipo_pago === "plazo_7_dias" && p.fecha_entrega != null && daysDiffFromToday(p.fecha_entrega) <= 0;
 
   return (
-    <TableRow className={cn(dueTone && "bg-primary/8")}>
+    <TableRow className={cn(dueTone && "bg-warning/5")}>
       <TableCell>
         <div>
           <p className="font-medium">{p.org_persona}</p>
@@ -518,13 +572,13 @@ function ActivePedidoRow(props: {
       </TableCell>
       <TableCell className="font-mono tabular-nums">{money(Number(p.monto))}</TableCell>
       <TableCell>
-        <Badge className={paymentClass(p.tipo_pago)}>{paymentLabel(p.tipo_pago)}</Badge>
+        <UiBadge variant={paymentBadgeVariant(p.tipo_pago)}>{paymentLabel(p.tipo_pago)}</UiBadge>
       </TableCell>
       <TableCell className="font-mono tabular-nums">{money(Number(p.monto_entregar))}</TableCell>
       <TableCell>{p.fecha_entrega ? new Date(`${p.fecha_entrega}T00:00:00`).toLocaleDateString("es-AR") : "—"}</TableCell>
-      <TableCell className={cn("text-xs", dueTone ? "font-semibold text-primary" : "text-muted-foreground")}>{countdown}</TableCell>
+      <TableCell className={cn("text-xs tabular-nums", dueTone ? "font-semibold text-warning" : "text-muted-foreground")}>{countdown}</TableCell>
       <TableCell>
-        <Badge className={estadoClass(p.estado)}>{estadoLabel(p.estado)}</Badge>
+        <UiBadge variant={estadoBadgeVariant(p.estado)}>{estadoLabel(p.estado)}</UiBadge>
       </TableCell>
       <TableCell className="font-mono tabular-nums">{money(Number(p.ganancia_real_banda))}</TableCell>
       <TableCell>
@@ -587,46 +641,6 @@ function copyDiscordSummary(p: LavadoPedidoWithUsers) {
     `Estado: ${estadoLabel(p.estado)}`,
   ];
   void navigator.clipboard?.writeText(lines.join("\n"));
-}
-
-function LavadoPedidosConfigCard(props: {
-  config: LavadoPedidoConfigRow;
-  canEdit: boolean;
-  saving: boolean;
-  onSave: (patch: Database["public"]["Tables"]["lavado_pedidos_config"]["Update"]) => void;
-}) {
-  const [form, setForm] = useState(props.config);
-  useEffect(() => setForm(props.config), [props.config]);
-
-  return (
-    <PanelCard
-      className="h-full"
-      icon={Settings}
-      title="Configuración"
-      description="Porcentajes usados para nuevos pedidos. Los pedidos existentes no se recalculan."
-    >
-      <div className="flex h-full flex-col">
-      <div className="grid gap-3">
-        <PercentInput label="Comisión instantánea" value={form.comision_instantaneo} onChange={(v) => setForm((f) => ({ ...f, comision_instantaneo: v }))} />
-        <PercentInput label="Comisión 7 días" value={form.comision_7_dias} onChange={(v) => setForm((f) => ({ ...f, comision_7_dias: v }))} />
-        <PercentInput label="Script come" value={form.script_porcentaje} onChange={(v) => setForm((f) => ({ ...f, script_porcentaje: v }))} />
-        <div className="space-y-1">
-          <Label className="text-xs">Días entrega plazo</Label>
-          <Input
-            type="number"
-            value={form.dias_entrega_plazo}
-            onChange={(e) => setForm((f) => ({ ...f, dias_entrega_plazo: Number(e.target.value) }))}
-          />
-        </div>
-      </div>
-      <div className="mt-auto flex justify-end border-t border-border/50 pt-4">
-        <Button className="w-full" type="button" disabled={!props.canEdit || props.saving} onClick={() => props.onSave(form)}>
-          {props.saving ? "Guardando…" : props.canEdit ? "Guardar configuración" : "Solo admin puede editar"}
-        </Button>
-      </div>
-      </div>
-    </PanelCard>
-  );
 }
 
 function PercentInput(props: { label: string; value: number; onChange: (value: number) => void }) {

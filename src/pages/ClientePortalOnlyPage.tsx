@@ -10,16 +10,19 @@ export function ClientePortalOnlyPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Acceso solo en el portal</CardTitle>
-          <CardDescription>
-            Tu cuenta es de cliente{isVip ? " VIP" : ""}: no tenés acceso al panel interno. Los pedidos se cargan en la app de pedidos.
-          </CardDescription>
+      <Card className="w-full max-w-sm border-subtle bg-surface shadow-none">
+        <CardHeader className="space-y-3 pb-2 text-center">
+          <img src="/logo.png" alt="Yakuza Meta" className="mx-auto size-16 object-contain" />
+          <div>
+            <CardTitle className="text-section-title">Acceso solo en el portal</CardTitle>
+            <CardDescription className="mt-1">
+              Tu cuenta es de cliente{isVip ? " VIP" : ""}: no tenés acceso al panel interno. Los pedidos se cargan en la app de pedidos.
+            </CardDescription>
+          </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           {user?.email ? (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-center text-sm text-muted-foreground">
               Sesión: <span className="text-foreground">{user.email}</span>
             </p>
           ) : null}
@@ -31,7 +34,7 @@ export function ClientePortalOnlyPage() {
               </a>
             </Button>
           ) : (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-center text-sm text-muted-foreground">
               Pedinos el enlace al portal de pedidos (no está configurado en esta instalación).
             </p>
           )}

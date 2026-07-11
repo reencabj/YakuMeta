@@ -10,10 +10,22 @@ import {
   Wallet,
 } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
-import { PageHeader, PageShell, PanelCard, SegmentTabs, StatTile } from "@/components/shell";
+import {
+  FilterBar,
+  MetricPair,
+  MiniBars,
+  PageHeader,
+  PageShell,
+  PanelCard,
+  RankingTable,
+  SegmentTabs,
+  StatGrid,
+  StatTile,
+} from "@/components/shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { downloadCsv } from "@/lib/csv";
 import { fmtKgDisplay } from "@/lib/format-kilo";
@@ -26,31 +38,29 @@ import {
   type StatisticsFilters,
   type StatsGranularity,
 } from "@/services/statisticsService";
-import { cn } from "@/lib/utils";
 
-function MiniBars(props: { points: { label: string; value: number; value2?: number }[]; color: string; color2?: string }) {
-  const max = Math.max(1, ...props.points.flatMap((p) => [p.value, p.value2 ?? 0]));
+const TOP_N = 5;
+
+function RankingPanel(props: {
+  title: string;
+  description?: string;
+  icon: typeof Package;
+  rows: { id: string; label: string; value: string | number }[];
+  loading?: boolean;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const Icon = props.icon;
+  const visible = props.expanded ? props.rows : props.rows.slice(0, TOP_N);
   return (
-    <div className="flex h-40 items-end gap-1 overflow-x-auto pb-2">
-      {props.points.map((p) => (
-        <div key={p.label} className="flex min-w-[28px] flex-1 flex-col items-center justify-end gap-1">
-          <div className="flex w-full flex-1 items-end justify-center gap-0.5">
-            <div
-              className={cn("w-full max-w-[14px] rounded-t bg-primary/80", props.color)}
-              style={{ height: `${(p.value / max) * 100}%`, minHeight: p.value > 0 ? 4 : 0 }}
-              title={`${p.label}: ${p.value.toFixed(2)}`}
-            />
-            {p.value2 != null && props.color2 ? (
-              <div
-                className={cn("w-full max-w-[14px] rounded-t", props.color2)}
-                style={{ height: `${(p.value2 / max) * 100}%`, minHeight: p.value2 > 0 ? 4 : 0 }}
-              />
-            ) : null}
-          </div>
-          <span className="max-w-full truncate text-[9px] text-muted-foreground">{p.label}</span>
-        </div>
-      ))}
-    </div>
+    <PanelCard icon={Icon} title={props.title} description={props.description}>
+      <RankingTable rows={visible.map((r) => ({ ...r, value: r.value }))} loading={props.loading} />
+      {props.rows.length > TOP_N ? (
+        <Button type="button" variant="ghost" size="sm" className="mt-2 h-8 text-xs" onClick={props.onToggle}>
+          {props.expanded ? "Ver top 5" : `Ver todos (${props.rows.length})`}
+        </Button>
+      ) : null}
+    </PanelCard>
   );
 }
 
@@ -66,40 +76,37 @@ export function StatisticsPage() {
   const [from, setFrom] = useState(defaultRange.from);
   const [to, setTo] = useState(defaultRange.to);
   const [periodPreset, setPeriodPreset] = useState<"today" | "week" | "month" | "custom">("custom");
+  const [expandedRankings, setExpandedRankings] = useState<Record<string, boolean>>({});
   const granularity: StatsGranularity = "day";
 
-  const filters: StatisticsFilters = useMemo(
-    () => ({
-      from,
-      to,
-    }),
-    [from, to]
-  );
-
+  const filters: StatisticsFilters = useMemo(() => ({ from, to }), [from, to]);
   const report = useStatisticsReport(filters, granularity);
-
   const settingsQ = useAppSettingsQuery();
   const currency = settingsQ.data?.currency?.trim() || "USD";
 
   const seriesPoints = useMemo(() => {
-    const s = report.data?.series ?? [];
-    return s.map((p) => ({
+    return (report.data?.series ?? []).map((p) => ({
       label: p.bucket,
       value: p.kilosVendidos,
       value2: p.dinero,
     }));
   }, [report.data?.series]);
+
   const kilosWeekPoints = useMemo(() => {
     return seriesPoints.slice(-7).map((p) => {
       let label = p.label;
       try {
-        label = format(parseISO(p.label), "EEE dd", { locale: undefined });
+        label = format(parseISO(p.label), "EEE dd");
       } catch {
         label = p.label;
       }
       return { label, value: p.value };
     });
   }, [seriesPoints]);
+
+  const toggleRanking = (key: string) => {
+    setExpandedRankings((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
 
   const exportSummary = async () => {
     if (!user?.id) return;
@@ -143,10 +150,7 @@ export function StatisticsPage() {
       ],
       rows.map((o: Record<string, unknown>) => {
         const cp = o.creado_por as { username?: string } | undefined;
-        return {
-          ...o,
-          creado_por: cp?.username ?? "",
-        };
+        return { ...o, creado_por: cp?.username ?? "" };
       })
     );
   };
@@ -171,9 +175,7 @@ export function StatisticsPage() {
         entregado_at: d.entregado_at,
         dinero_recibido: d.dinero_recibido,
         produccion_directa_meta_kilos: d.produccion_directa_meta_kilos,
-        items_resumen: (d.items ?? [])
-          .map((i) => `${i.origen_tipo}:${i.cantidad_meta_kilos}`)
-          .join(";"),
+        items_resumen: (d.items ?? []).map((i) => `${i.origen_tipo}:${i.cantidad_meta_kilos}`).join(";"),
       }))
     );
   };
@@ -196,6 +198,7 @@ export function StatisticsPage() {
   };
 
   const kpis = report.data?.kpis;
+
   const applyPreset = (preset: "today" | "week" | "month" | "custom") => {
     setPeriodPreset(preset);
     if (preset === "custom") return;
@@ -215,232 +218,201 @@ export function StatisticsPage() {
     setTo(format(endOfMonth(now), "yyyy-MM-dd"));
   };
 
+  const depositosMov = (report.data?.rankings.depositosPorMovimientos ?? []).map((r) => ({
+    id: r.id,
+    label: r.label,
+    value: r.value,
+  }));
+  const usuariosEntregas = (report.data?.rankings.usuariosEntregas ?? []).map((r) => ({
+    id: r.id,
+    label: r.label,
+    value: r.value,
+  }));
+  const usuariosIngresos = (report.data?.rankings.usuariosIngresos ?? []).map((r) => ({
+    id: r.id,
+    label: r.label,
+    value: r.value.toFixed(2),
+  }));
+  const depositosKg = (report.data?.rankings.depositosPorKgMovidos ?? []).map((r) => ({
+    id: r.id,
+    label: r.label,
+    value: r.value.toFixed(2),
+  }));
+
   return (
     <PageShell>
       <PageHeader
         title="Estadísticas"
-        description="Indicadores globales del negocio por período (mismos totales para todos los usuarios; RLS de Supabase aplica). Los administradores pueden filtrar por usuario en los desplegables."
+        description="Indicadores globales por período. Exportación CSV disponible."
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={() => void exportSummary()}>
+            <Button type="button" variant="outline" size="sm" onClick={() => void exportSummary()}>
               <Download className="size-3.5" />
-              Resumen CSV
+              Resumen
             </Button>
-            <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={() => void exportOrders()}>
-              <Download className="size-3.5" />
+            <Button type="button" variant="outline" size="sm" onClick={() => void exportOrders()}>
               Pedidos
             </Button>
-            <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={() => void exportDeliveries()}>
-              <Download className="size-3.5" />
+            <Button type="button" variant="outline" size="sm" onClick={() => void exportDeliveries()}>
               Entregas
             </Button>
-            <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={() => void exportMovements()}>
-              <Download className="size-3.5" />
+            <Button type="button" variant="outline" size="sm" onClick={() => void exportMovements()}>
               Movimientos
             </Button>
           </div>
         }
       />
 
-      <section className="rounded-2xl border border-border/70 bg-card/40 p-4 shadow-sm">
-        <div className="flex flex-wrap items-end justify-center gap-4">
-          <div className="min-w-[320px]">
-            <Label className="sr-only">Período rápido</Label>
-            <SegmentTabs
-              value={periodPreset}
-              onChange={(v) => applyPreset(v as "today" | "week" | "month" | "custom")}
-              options={[
-                { value: "today", label: "Hoy" },
-                { value: "week", label: "Esta semana" },
-                { value: "month", label: "Este mes" },
-                { value: "custom", label: "Rango" },
-              ]}
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <Label className="text-xs whitespace-nowrap">Desde</Label>
-            <Input
-              type="date"
-              value={from}
-              onChange={(e) => {
-                setFrom(e.target.value);
-                setPeriodPreset("custom");
-              }}
-              className="h-9 w-[170px]"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <Label className="text-xs whitespace-nowrap">Hasta</Label>
-            <Input
-              type="date"
-              value={to}
-              onChange={(e) => {
-                setTo(e.target.value);
-                setPeriodPreset("custom");
-              }}
-              className="h-9 w-[170px]"
-            />
-          </div>
+      <FilterBar sticky className="rounded-lg border border-subtle bg-surface px-3">
+        <SegmentTabs
+          value={periodPreset}
+          onChange={(v) => applyPreset(v as "today" | "week" | "month" | "custom")}
+          options={[
+            { value: "today", label: "Hoy" },
+            { value: "week", label: "Semana" },
+            { value: "month", label: "Mes" },
+            { value: "custom", label: "Rango" },
+          ]}
+        />
+        <div className="flex items-center gap-2">
+          <Label className="text-xs whitespace-nowrap text-muted-foreground">Desde</Label>
+          <Input
+            type="date"
+            value={from}
+            onChange={(e) => {
+              setFrom(e.target.value);
+              setPeriodPreset("custom");
+            }}
+            className="h-9 w-[150px]"
+          />
         </div>
-      </section>
+        <div className="flex items-center gap-2">
+          <Label className="text-xs whitespace-nowrap text-muted-foreground">Hasta</Label>
+          <Input
+            type="date"
+            value={to}
+            onChange={(e) => {
+              setTo(e.target.value);
+              setPeriodPreset("custom");
+            }}
+            className="h-9 w-[150px]"
+          />
+        </div>
+      </FilterBar>
 
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <StatGrid columns={5}>
         <StatTile
+          dense
           icon={TrendingUp}
-          label="Kilos vendidos (entregas)"
+          label="Kilos vendidos"
           value={fmtKgDisplay(kpis?.kilosVendidos, report.isLoading)}
           unit="kg"
-          hint="Suma de ítems de entrega en el período"
+          hint="Suma de ítems de entrega"
           tone="emerald"
-          dense
         />
         <StatTile
+          dense
           icon={Wallet}
           label="Dinero cobrado"
-          value={report.isLoading ? "…" : kpis != null ? kpis.dineroCobrado.toLocaleString("es-AR", { maximumFractionDigits: 0 }) : "—"}
+          value={
+            report.isLoading
+              ? "…"
+              : kpis != null
+                ? kpis.dineroCobrado.toLocaleString("es-AR", { maximumFractionDigits: 0 })
+                : "—"
+          }
           unit={currency}
           tone="slate"
-          dense
         />
         <StatTile
+          dense
           icon={Truck}
           label="Pedidos entregados"
           value={report.isLoading ? "…" : String(kpis?.pedidosEntregados ?? "—")}
           unit="pedidos"
           tone="amber"
-          dense
         />
         <StatTile
+          dense
           icon={ArrowDownRight}
-          label="Pedidos cancelados"
+          label="Cancelados"
           value={report.isLoading ? "…" : String(kpis?.pedidosCancelados ?? "—")}
           unit="en período"
           tone="rose"
-          dense
         />
         <StatTile
+          dense
           icon={Package}
           label="Pedidos creados"
           value={report.isLoading ? "…" : String(kpis?.pedidosCreados ?? "—")}
           unit="altas"
           tone="slate"
-          dense
         />
-      </section>
+      </StatGrid>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <PanelCard
-          icon={BarChart3}
-          title="Serie temporal"
-          description="Kilos vendidos a lo largo de la semana (últimos 7 días)."
-          headerExtra={
-            <span className="text-xs text-muted-foreground">
-              {report.isError ? "Error al cargar" : null}
-            </span>
-          }
-        >
+        <PanelCard icon={BarChart3} title="Serie temporal" description="Kilos vendidos — últimos 7 días.">
           {kilosWeekPoints.length === 0 && !report.isLoading ? (
             <p className="text-sm text-muted-foreground">Sin entregas en el período.</p>
           ) : (
-            <MiniBars points={kilosWeekPoints} color="bg-primary/80" />
+            <MiniBars points={kilosWeekPoints} />
           )}
+          {report.isError ? <p className="mt-2 text-xs text-destructive">Error al cargar la serie.</p> : null}
         </PanelCard>
 
-        <PanelCard icon={Wallet} title="Entregas: stock vs producción directa" description="Kilos por origen en el período filtrado.">
+        <PanelCard icon={Wallet} title="Entregas por origen" description="Stock vs producción directa en el período.">
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-xl border border-border/60 bg-muted/20 p-4">
-              <p className="text-xs uppercase text-muted-foreground">Desde stock</p>
-              <p className="mt-1 text-2xl font-semibold tabular-nums">{fmtKgDisplay(kpis?.entregaDesdeStockKg, report.isLoading)}</p>
-            </div>
-            <div className="rounded-xl border border-border/60 bg-muted/20 p-4">
-              <p className="text-xs uppercase text-muted-foreground">Producción directa</p>
-              <p className="mt-1 text-2xl font-semibold tabular-nums">{fmtKgDisplay(kpis?.entregaDesdeProduccionKg, report.isLoading)}</p>
-            </div>
+            <MetricPair label="Desde stock" value={fmtKgDisplay(kpis?.entregaDesdeStockKg, report.isLoading)} />
+            <MetricPair label="Producción directa" value={fmtKgDisplay(kpis?.entregaDesdeProduccionKg, report.isLoading)} />
           </div>
         </PanelCard>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <PanelCard icon={Package} title="Depósitos más usados" description="Cantidad de movimientos registrados (filtrados).">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Depósito</TableHead>
-                <TableHead className="text-right">Movimientos</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(report.data?.rankings.depositosPorMovimientos ?? []).map((r) => (
-                <TableRow key={r.id}>
-                  <TableCell>{r.label}</TableCell>
-                  <TableCell className="text-right tabular-nums">{r.value}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </PanelCard>
-        <PanelCard icon={Truck} title="Usuarios con más entregas" description="Entregas registradas en el período.">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Usuario</TableHead>
-                <TableHead className="text-right">Entregas</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(report.data?.rankings.usuariosEntregas ?? []).map((r) => (
-                <TableRow key={r.id}>
-                  <TableCell>{r.label}</TableCell>
-                  <TableCell className="text-right tabular-nums">{r.value}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </PanelCard>
+        <RankingPanel
+          icon={Package}
+          title="Depósitos más usados"
+          description="Movimientos registrados."
+          rows={depositosMov}
+          loading={report.isLoading}
+          expanded={!!expandedRankings.depositosMov}
+          onToggle={() => toggleRanking("depositosMov")}
+        />
+        <RankingPanel
+          icon={Truck}
+          title="Usuarios con más entregas"
+          description="Entregas en el período."
+          rows={usuariosEntregas}
+          loading={report.isLoading}
+          expanded={!!expandedRankings.usuariosEntregas}
+          onToggle={() => toggleRanking("usuariosEntregas")}
+        />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <PanelCard icon={Package} title="Ingresos de stock por usuario" description="Suma de kg en movimientos tipo ingreso.">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Usuario</TableHead>
-                <TableHead className="text-right">Kg meta</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(report.data?.rankings.usuariosIngresos ?? []).map((r) => (
-                <TableRow key={r.id}>
-                  <TableCell>{r.label}</TableCell>
-                  <TableCell className="text-right tabular-nums">{r.value.toFixed(2)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </PanelCard>
-        <PanelCard icon={Truck} title="Transferencias por depósito" description="Kg movidos (salida + entrada en depósito).">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Depósito</TableHead>
-                <TableHead className="text-right">Kg meta</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(report.data?.rankings.depositosPorKgMovidos ?? []).map((r) => (
-                <TableRow key={r.id}>
-                  <TableCell>{r.label}</TableCell>
-                  <TableCell className="text-right tabular-nums">{r.value.toFixed(2)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </PanelCard>
+        <RankingPanel
+          icon={Package}
+          title="Ingresos de stock por usuario"
+          description="Kg en movimientos tipo ingreso."
+          rows={usuariosIngresos}
+          loading={report.isLoading}
+          expanded={!!expandedRankings.usuariosIngresos}
+          onToggle={() => toggleRanking("usuariosIngresos")}
+        />
+        <RankingPanel
+          icon={Truck}
+          title="Transferencias por depósito"
+          description="Kg movidos (entrada + salida)."
+          rows={depositosKg}
+          loading={report.isLoading}
+          expanded={!!expandedRankings.depositosKg}
+          onToggle={() => toggleRanking("depositosKg")}
+        />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <PanelCard icon={Package} title="Lotes más antiguos" description="Por fecha de guardado (stock activo).">
-          <Table>
+        <PanelCard icon={Package} title="Lotes más antiguos" description="Stock activo por fecha de guardado.">
+          <Table bordered>
             <TableHeader>
               <TableRow>
                 <TableHead>Depósito</TableHead>
@@ -449,18 +421,24 @@ export function StatisticsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(report.data?.lotesMasAntiguos ?? []).map((r) => (
+              {(report.data?.lotesMasAntiguos ?? []).slice(0, expandedRankings.lotes ? undefined : TOP_N).map((r) => (
                 <TableRow key={r.batchId}>
                   <TableCell className="max-w-[140px] truncate">{r.depositoNombre}</TableCell>
-                  <TableCell className="tabular-nums text-xs">{r.fechaGuardado}</TableCell>
+                  <TableCell className="tabular-nums text-xs text-muted-foreground">{r.fechaGuardado}</TableCell>
                   <TableCell className="text-right tabular-nums">{r.kg.toFixed(2)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
+          {(report.data?.lotesMasAntiguos?.length ?? 0) > TOP_N ? (
+            <Button type="button" variant="ghost" size="sm" className="mt-2 h-8 text-xs" onClick={() => toggleRanking("lotes")}>
+              {expandedRankings.lotes ? "Ver top 5" : "Ver todos"}
+            </Button>
+          ) : null}
         </PanelCard>
-        <PanelCard icon={Package} title="Ocupación de depósitos" description="Kg guardado / capacidad (aprox.).">
-          <Table>
+
+        <PanelCard icon={Package} title="Ocupación de depósitos" description="Kg guardado / capacidad.">
+          <Table bordered>
             <TableHeader>
               <TableRow>
                 <TableHead>Depósito</TableHead>
@@ -469,7 +447,7 @@ export function StatisticsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(report.data?.depositosOcupacion ?? []).map((r) => (
+              {(report.data?.depositosOcupacion ?? []).slice(0, expandedRankings.ocupacion ? undefined : TOP_N).map((r) => (
                 <TableRow key={r.depositoId}>
                   <TableCell className="max-w-[160px] truncate">{r.nombre}</TableCell>
                   <TableCell className="text-right tabular-nums">{r.pct.toFixed(1)}%</TableCell>
@@ -480,11 +458,16 @@ export function StatisticsPage() {
               ))}
             </TableBody>
           </Table>
+          {(report.data?.depositosOcupacion?.length ?? 0) > TOP_N ? (
+            <Button type="button" variant="ghost" size="sm" className="mt-2 h-8 text-xs" onClick={() => toggleRanking("ocupacion")}>
+              {expandedRankings.ocupacion ? "Ver top 5" : "Ver todos"}
+            </Button>
+          ) : null}
         </PanelCard>
       </div>
 
       <PanelCard icon={Package} title="Stock en riesgo / vencimiento" description="Según umbrales en configuración.">
-        <Table>
+        <Table bordered>
           <TableHeader>
             <TableRow>
               <TableHead>Depósito</TableHead>
@@ -498,19 +481,21 @@ export function StatisticsPage() {
               <TableRow key={r.batchId}>
                 <TableCell className="max-w-[160px] truncate">{r.depositoNombre}</TableCell>
                 <TableCell>
-                  <span
-                    className={cn(
-                      "rounded-md px-2 py-0.5 text-xs font-medium",
-                      r.riesgo === "vencido" && "bg-red-950/50 text-red-200",
-                      r.riesgo === "critico" && "bg-primary/18 text-foreground",
-                      r.riesgo === "warning" && "bg-muted/70 text-foreground",
-                      r.riesgo === "ok" && "bg-muted text-muted-foreground"
-                    )}
+                  <Badge
+                    variant={
+                      r.riesgo === "vencido"
+                        ? "danger"
+                        : r.riesgo === "critico"
+                          ? "warning"
+                          : r.riesgo === "warning"
+                            ? "warning"
+                            : "secondary"
+                    }
                   >
                     {r.riesgo}
-                  </span>
+                  </Badge>
                 </TableCell>
-                <TableCell className="text-xs">{r.fechaVencimiento ?? "—"}</TableCell>
+                <TableCell className="text-xs text-muted-foreground">{r.fechaVencimiento ?? "—"}</TableCell>
                 <TableCell className="text-right tabular-nums">{r.kg.toFixed(2)}</TableCell>
               </TableRow>
             ))}

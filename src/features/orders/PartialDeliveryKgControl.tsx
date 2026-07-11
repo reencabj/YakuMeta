@@ -40,15 +40,13 @@ export function PartialDeliveryKgControl({ order, className }: Props) {
 
   return (
     <div
-      className={cn("relative overflow-hidden rounded-md border border-border/50", className)}
+      className={cn("relative overflow-hidden rounded-md border border-subtle bg-surface-elevated", className)}
       onClick={(e) => e.stopPropagation()}
       onKeyDown={(e) => e.stopPropagation()}
       role="group"
       aria-label={`Entregas parciales: ${fmtKg(deliveredKg)} de ${fmtKg(totalKg)} kilogramos (${Math.round(progressPct)} por ciento)`}
     >
-      <div className="pointer-events-none absolute inset-0 bg-muted/20" aria-hidden />
-      <div
-        className="pointer-events-none absolute inset-y-0 left-0 bg-primary/40 transition-[width] duration-300 ease-out dark:bg-primary/35"
+      <div className="pointer-events-none absolute inset-y-0 left-0 bg-primary/25 transition-[width] duration-300 ease-out"
         style={{ width: `${progressPct}%` }}
         aria-hidden
       />

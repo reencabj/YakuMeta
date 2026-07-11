@@ -84,14 +84,7 @@ export function WarehouseTandaPanel(props: {
   }, [props.dryCfg?.estaciones, dryStation, occupiedDryStations]);
 
   return (
-    <div
-      className={cn(
-        "flex h-full min-h-0 flex-col rounded-lg border p-2.5",
-        props.almacen === "liquid"
-          ? "border-primary/35 bg-primary/[0.06]"
-          : "border-emerald-500/30 bg-emerald-500/[0.06]"
-      )}
-    >
+    <div className="flex h-full min-h-0 flex-col rounded-md border border-subtle bg-background-secondary p-2.5">
       <div className="mb-2 flex items-center justify-between gap-2">
         <p className="text-sm font-semibold leading-none">{props.label}</p>
         <span className="text-[10px] tabular-nums text-muted-foreground">
@@ -174,7 +167,7 @@ function CompactProcessBlock(props: {
     (amountNum < props.minAmount || amountNum > props.maxAmount);
 
   return (
-    <div className="flex h-full min-h-0 flex-col rounded-md border border-border/50 bg-muted/15 p-2" title={props.hint}>
+    <div className="flex h-full min-h-0 flex-col rounded-md border border-subtle bg-surface p-2" title={props.hint}>
       <div className="mb-1.5 flex items-center justify-between gap-1">
         <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{props.title}</p>
         <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">${money(props.expectedOutput)}</span>
@@ -255,9 +248,9 @@ function StationButtons(props: {
                 "inline-flex min-w-0 flex-1 items-center justify-center rounded-md border transition-colors",
                 props.compact ? "px-1 text-xs" : "px-2 text-sm",
                 selected
-                  ? "border-primary/45 bg-primary/20 text-foreground"
-                  : "border-input bg-background text-foreground hover:bg-muted/60",
-                busy && "cursor-not-allowed border-border/60 bg-muted/40 text-muted-foreground opacity-70"
+                  ? "border-primary/30 bg-primary-soft text-foreground"
+                  : "border-subtle bg-surface text-foreground hover:bg-surface-elevated",
+                busy && "cursor-not-allowed border-subtle bg-muted text-muted-foreground opacity-60"
               )}
               title={busy ? `Estación ${station} ocupada` : `Estación ${station}`}
             >

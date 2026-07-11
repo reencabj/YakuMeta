@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Gauge,
   Layers,
+  MoreVertical,
   Package,
   Settings,
   Shield,
@@ -38,16 +39,36 @@ import {
 } from "@/features/lavado-pedidos/lavadoPedidosService";
 import { authRecoveryRedirectUrl, supabase } from "@/lib/supabase";
 import { suggestedPricePerKgMeta } from "@/lib/order-pricing";
-import { PageHeader, PageShell, PanelCard, SegmentTabs } from "@/components/shell";
+import { PageHeader, PageShell, PanelCard, SegmentTabs, selectClassName } from "@/components/shell";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { CustomerType, Database, PaymentType, UserRole } from "@/types/database";
-import { cn } from "@/lib/utils";
 
 type Tab = "users" | "vip" | "types" | "settings" | "pricing" | "groups" | "maintenance";
+
+function TableRowActions(props: { children: ReactNode }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="Acciones">
+          <MoreVertical className="size-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">{props.children}</DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 export function AdminPage() {
   const [tab, setTab] = useState<Tab>("users");
@@ -257,16 +278,16 @@ export function AdminPage() {
             </Button>
           }
         >
-          <Table>
+          <Table bordered>
             <TableHeader>
               <TableRow>
                 <TableHead>Usuario</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Nombre</TableHead>
                 <TableHead>Rol</TableHead>
-                <TableHead>Activo</TableHead>
+                <TableHead>Estado</TableHead>
                 <TableHead>Creado</TableHead>
-                <TableHead />
+                <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -276,31 +297,34 @@ export function AdminPage() {
                   <TableCell className="max-w-[200px] truncate text-xs text-muted-foreground">{p.email}</TableCell>
                   <TableCell>{p.display_name ?? "—"}</TableCell>
                   <TableCell>
-                    <span
-                      className={cn(
-                        "rounded-md px-2 py-0.5 text-xs",
+                    <Badge
+                      variant={
                         p.role === "admin"
-                          ? "bg-primary/20 text-primary"
-                          : p.role === "cliente" || p.role === "cliente_vip"
-                            ? "bg-secondary/80 text-secondary-foreground"
-                            : "bg-muted text-muted-foreground"
-                      )}
+                          ? "violet"
+                          : p.role === "cliente_vip"
+                            ? "violet"
+                            : p.role === "cliente"
+                              ? "info"
+                              : "secondary"
+                      }
                     >
                       {p.role}
-                    </span>
+                    </Badge>
                   </TableCell>
-                  <TableCell>{p.is_active ? "sí" : "no"}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{formatDate(p.created_at)}</TableCell>
                   <TableCell>
-                    <Button type="button" variant="outline" size="sm" onClick={() => setEditProfile(p)}>
-                      Editar
-                    </Button>
+                    <Badge variant={p.is_active ? "success" : "secondary"}>{p.is_active ? "Activo" : "Inactivo"}</Badge>
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{formatDate(p.created_at)}</TableCell>
+                  <TableCell className="text-right">
+                    <TableRowActions>
+                      <DropdownMenuItem onSelect={() => setEditProfile(p)}>Editar usuario</DropdownMenuItem>
+                    </TableRowActions>
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
-          <div className="mt-4 rounded-xl border border-border/60 bg-muted/20 p-4 text-sm text-muted-foreground">
+          <div className="mt-4 rounded-md border border-subtle bg-background-secondary p-4 text-sm text-muted-foreground">
             <p className="font-medium text-foreground">Invitaciones</p>
             <p className="mt-1">
               Las invitaciones usan la Edge Function <code className="rounded bg-muted px-1">invite-user</code> con tu
@@ -335,7 +359,7 @@ export function AdminPage() {
                 <div className="space-y-1">
                   <Label>Rol inicial</Label>
                   <select
-                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+                    className={selectClassName}
                     value={inviteRole}
                     onChange={(e) => setInviteRole(e.target.value as UserRole)}
                   >
@@ -378,7 +402,7 @@ export function AdminPage() {
             </Button>
           }
         >
-          <Table>
+          <Table bordered>
             <TableHeader>
               <TableRow>
                 <TableHead>Nombre</TableHead>
@@ -395,18 +419,16 @@ export function AdminPage() {
                   <TableCell className="max-w-[320px] truncate text-xs text-muted-foreground">{c.notas ?? "—"}</TableCell>
                   <TableCell>{c.is_active ? "sí" : "no"}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{formatDate(c.created_at)}</TableCell>
-                  <TableCell className="space-x-2">
-                    <Button type="button" variant="outline" size="sm" onClick={() => setEditVipClient(c)}>
-                      Editar
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => updateVipClientM.mutate({ id: c.id, patch: { is_active: !c.is_active } })}
-                    >
-                      {c.is_active ? "Desactivar" : "Activar"}
-                    </Button>
+                  <TableCell className="text-right">
+                    <TableRowActions>
+                      <DropdownMenuItem onSelect={() => setEditVipClient(c)}>Editar</DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onSelect={() => updateVipClientM.mutate({ id: c.id, patch: { is_active: !c.is_active } })}
+                      >
+                        {c.is_active ? "Desactivar" : "Activar"}
+                      </DropdownMenuItem>
+                    </TableRowActions>
                   </TableCell>
                 </TableRow>
               ))}
@@ -466,7 +488,7 @@ export function AdminPage() {
               Crear tipo
             </Button>
           </div>
-          <Table>
+          <Table bordered>
             <TableHeader>
               <TableRow>
                 <TableHead>Nombre</TableHead>
@@ -549,7 +571,7 @@ export function AdminPage() {
               <div className="space-y-1">
                 <Label className="text-xs">Tipo de cliente</Label>
                 <select
-                  className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                  className={selectClassName}
                   value={sampleTipoCliente}
                   onChange={(e) => setSampleTipoCliente(e.target.value as CustomerType)}
                 >
@@ -560,7 +582,7 @@ export function AdminPage() {
               <div className="space-y-1">
                 <Label className="text-xs">Tipo de pago</Label>
                 <select
-                  className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                  className={selectClassName}
                   value={sampleTipoPago}
                   onChange={(e) => setSampleTipoPago(e.target.value as PaymentType)}
                 >
@@ -568,7 +590,7 @@ export function AdminPage() {
                   <option value="negro">Dinero en negro</option>
                 </select>
               </div>
-              <div className="rounded-xl border border-border/60 bg-muted/30 px-4 py-3">
+              <div className="rounded-md border border-subtle bg-background-secondary px-4 py-3">
                 <p className="text-xs uppercase text-muted-foreground">Precio / kg sugerido</p>
                 <p className="text-2xl font-semibold tabular-nums">
                   ${sug.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -587,7 +609,7 @@ export function AdminPage() {
               </Button>
             }
           >
-            <Table>
+            <Table bordered>
               <TableHeader>
                 <TableRow>
                   <TableHead>Nombre</TableHead>
@@ -610,13 +632,17 @@ export function AdminPage() {
                     <TableCell className="text-right tabular-nums">{r.precio_por_kilo}</TableCell>
                     <TableCell className="text-right tabular-nums">{r.prioridad}</TableCell>
                     <TableCell>{r.is_active ? "sí" : "no"}</TableCell>
-                    <TableCell className="space-x-2">
-                      <Button type="button" variant="outline" size="sm" onClick={() => setEditRule(r)}>
-                        Editar
-                      </Button>
-                      <Button type="button" variant="ghost" size="sm" className="text-red-400" onClick={() => deleteRuleM.mutate(r.id)}>
-                        Borrar
-                      </Button>
+                    <TableCell className="text-right">
+                      <TableRowActions>
+                        <DropdownMenuItem onSelect={() => setEditRule(r)}>Editar</DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onSelect={() => deleteRuleM.mutate(r.id)}
+                        >
+                          Borrar
+                        </DropdownMenuItem>
+                      </TableRowActions>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -670,7 +696,7 @@ export function AdminPage() {
             </Button>
           }
         >
-          <Table>
+          <Table bordered>
             <TableHeader>
               <TableRow>
                 <TableHead>Grupo</TableHead>
@@ -705,7 +731,7 @@ export function AdminPage() {
           {snapshotQ.isLoading ? (
             <p className="text-sm text-muted-foreground">Cargando…</p>
           ) : (
-            <pre className="max-h-[420px] overflow-auto rounded-xl border border-border/60 bg-muted/30 p-4 text-xs text-muted-foreground">
+            <pre className="max-h-[420px] overflow-auto rounded-md border border-subtle bg-background-secondary p-4 text-xs text-muted-foreground">
               {JSON.stringify(snapshotQ.data, null, 2)}
             </pre>
           )}

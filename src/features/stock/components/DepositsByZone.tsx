@@ -93,17 +93,17 @@ export function DepositsByZone(props: Props) {
           type="button"
           onClick={() => setSelectedKey(null)}
           className={cn(
-            "inline-flex items-center gap-2 rounded-lg border border-border/70 bg-muted/30 px-3 py-2 text-sm",
-            "text-muted-foreground transition-colors hover:border-primary/40 hover:bg-muted/50 hover:text-foreground",
+            "inline-flex items-center gap-2 rounded-md border border-subtle bg-surface px-3 py-2 text-sm",
+            "text-muted-foreground transition-ui hover:bg-surface-elevated hover:text-foreground",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           )}
         >
           <ArrowLeft className="h-4 w-4" aria-hidden />
           Todas las zonas
         </button>
-        <div className="flex items-center gap-3 border-b border-border/60 pb-3">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-border/70 bg-muted/40">
-            <Icon className="h-6 w-6 text-primary" aria-hidden />
+        <div className="flex items-center gap-3 border-b border-subtle pb-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-md border border-subtle bg-background-secondary">
+            <Icon className="size-5 text-muted-foreground" aria-hidden />
           </div>
           <div className="min-w-0">
             <h2 className="text-lg font-semibold tracking-tight">{activeGroup.label}</h2>
@@ -149,13 +149,13 @@ export function DepositsByZone(props: Props) {
             title={title || undefined}
             onClick={() => setSelectedKey(g.key)}
             className={cn(
-              "group relative flex flex-col overflow-hidden rounded-xl border border-border/80 bg-card px-3 py-2 text-left shadow-sm",
-              "transition-all duration-200 hover:border-primary/45 hover:shadow-md hover:-translate-y-0.5",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              "group relative flex flex-col overflow-hidden rounded-lg border border-subtle bg-surface px-3 py-2 text-left",
+              "transition-ui hover:border-strong hover:bg-surface-elevated",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             )}
           >
             <div
-              className="pointer-events-none absolute inset-y-0 left-0 bg-primary/20 transition-[width] duration-300 ease-out group-hover:bg-primary/28"
+              className="pointer-events-none absolute inset-y-0 left-0 bg-primary/15 transition-[width] duration-300 ease-out"
               style={{ width: `${fillPct}%` }}
               aria-hidden
             />
@@ -163,11 +163,11 @@ export function DepositsByZone(props: Props) {
               <div className="flex items-start gap-2.5">
                 <div
                   className={cn(
-                    "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-muted/40",
-                    "text-muted-foreground transition-colors group-hover:border-primary/30 group-hover:text-primary"
+                    "flex size-10 shrink-0 items-center justify-center rounded-md border border-subtle bg-background-secondary",
+                    "text-muted-foreground transition-ui group-hover:text-foreground"
                   )}
                 >
-                  <Icon className="h-5 w-5" aria-hidden />
+                  <Icon className="size-5" aria-hidden />
                 </div>
                 <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
                   <div className="min-w-0">
@@ -184,11 +184,11 @@ export function DepositsByZone(props: Props) {
                   </p>
                 </div>
               </div>
-              <div className="border-t border-border/50 pt-1 text-center">
-                <p className="text-[11px] leading-tight text-muted-foreground tabular-nums">
+              <div className="border-t border-subtle pt-1 text-center">
+                <p className="text-[11px] leading-tight tabular-nums text-muted-foreground">
                   {pctLabel ? (
                     <>
-                      <span className="text-primary/90">{pctLabel}</span> ocupación
+                      <span className="text-foreground">{pctLabel}</span> ocupación
                       {g.totalCapMetaKg > 0 ? (
                         <>
                           {" "}

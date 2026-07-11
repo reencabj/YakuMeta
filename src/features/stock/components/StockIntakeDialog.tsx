@@ -31,7 +31,7 @@ const intCountSchema = z.preprocess((v) => normalizeIntCount(v), z.number().int(
 export type IntakeModo = "kg" | "rapido" | "composicion";
 
 const baseSchema = z.object({
-  deposito_id: z.string().min(1, "Depósito requerido"),
+  deposito_id: z.string().min(1, "Dep?sito requerido"),
   fecha_guardado: z.string().min(1, "Fecha requerida"),
   observaciones: z.string().optional(),
   cantidad_meta_kilos: z.coerce.number().positive("Debe ser mayor que 0"),
@@ -46,7 +46,7 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   deposits: DepositRowModel[];
-  /** Si viene del detalle de un depósito, preselecciona ese depósito. */
+  /** Si viene del detalle de un dep?sito, preselecciona ese dep?sito. */
   preferredDepositoId?: string | null;
   onSubmit: (values: RegisterIntakeInput) => Promise<void>;
   isSubmitting?: boolean;
@@ -122,7 +122,7 @@ export function StockIntakeDialog(props: Props) {
           <DialogTitle>Registrar ingreso de stock</DialogTitle>
           <DialogDescription>
             Crea un lote y un movimiento de tipo <strong>ingreso</strong>. El vencimiento estimado se calcula con la
-            configuración global (días de duración por defecto).
+            configuraci?n global (d?as de duraci?n por defecto).
           </DialogDescription>
         </DialogHeader>
 
@@ -139,7 +139,7 @@ export function StockIntakeDialog(props: Props) {
                 BOLSAS_PER_KG_META
               );
               if (comp.totalBolsas <= 0) {
-                form.setError("packs_de_3", { message: "Indicá packs o bolsas (total debe ser mayor a 0)" });
+                form.setError("packs_de_3", { message: "Indic? packs o bolsas (total debe ser mayor a 0)" });
                 return;
               }
               cantidad_meta_kilos = comp.cantidadMetaKilos;
@@ -152,7 +152,7 @@ export function StockIntakeDialog(props: Props) {
             } else if (modo === "rapido") {
               const kg = rapidoPreset === "otro" ? values.custom_rapido_kg : rapidoPreset;
               if (!Number.isFinite(kg) || kg <= 0) {
-                form.setError("custom_rapido_kg", { message: "Cantidad inválida" });
+                form.setError("custom_rapido_kg", { message: "Cantidad inv?lida" });
                 return;
               }
               cantidad_meta_kilos = kg;
@@ -174,13 +174,13 @@ export function StockIntakeDialog(props: Props) {
             <Label>Modo de ingreso</Label>
             <div className="flex flex-wrap gap-2">
               {modoBtn("kg", "Kg directo")}
-              {modoBtn("rapido", "Selector rápido")}
-              {modoBtn("composicion", "Composición (bolsas)")}
+              {modoBtn("rapido", "Selector r?pido")}
+              {modoBtn("composicion", "Composici?n (bolsas)")}
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="deposito_id">Depósito</Label>
+            <Label htmlFor="deposito_id">Dep?sito</Label>
             <select
               id="deposito_id"
               className={cn(
@@ -189,7 +189,7 @@ export function StockIntakeDialog(props: Props) {
               {...form.register("deposito_id")}
             >
               {activeDeposits.length === 0 ? (
-                <option value="">No hay depósitos activos</option>
+                <option value="">No hay dep?sitos activos</option>
               ) : (
                 activeDeposits.map((d) => (
                   <option key={d.id} value={d.id}>
@@ -215,7 +215,7 @@ export function StockIntakeDialog(props: Props) {
 
           {modo === "rapido" ? (
             <div className="space-y-3">
-              <Label>Cantidad rápida</Label>
+              <Label>Cantidad r?pida</Label>
               <div className="flex flex-wrap gap-2">
                 {QUICK_KGS.map((k) => (
                   <Button
@@ -251,8 +251,8 @@ export function StockIntakeDialog(props: Props) {
                   ) : null}
                 </div>
               ) : null}
-              <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
-                <span className="text-muted-foreground">Se registrará: </span>
+              <div className="rounded-md border border-subtle bg-background-secondary px-3 py-2 text-sm">
+                <span className="text-muted-foreground">Se registrar?: </span>
                 <span className="font-mono font-medium tabular-nums">{rapidoKgEfectivo.toLocaleString("es-AR")} kg</span>
               </div>
             </div>
@@ -279,25 +279,25 @@ export function StockIntakeDialog(props: Props) {
               {form.formState.errors.packs_de_3 ? (
                 <p className="text-xs text-red-400">{form.formState.errors.packs_de_3.message}</p>
               ) : null}
-              <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm space-y-1">
+              <div className="rounded-md border border-subtle bg-background-secondary px-3 py-2 text-sm space-y-1">
                 <p>
                   <span className="text-muted-foreground">Total bolsas: </span>
                   <span className="font-mono tabular-nums">{composicion.totalBolsas}</span>
-                  <span className="text-muted-foreground"> (= packs×3 + individuales)</span>
+                  <span className="text-muted-foreground"> (= packs��3 + individuales)</span>
                 </p>
                 <p>
                   <span className="text-muted-foreground">Equivale a: </span>
                   <span className="font-mono font-medium tabular-nums">
                     {composicion.cantidadMetaKilos.toLocaleString("es-AR", { maximumFractionDigits: 6 })} kg de meta
                   </span>
-                  <span className="text-muted-foreground"> (÷ {BOLSAS_PER_KG_META} bolsas/kg)</span>
+                  <span className="text-muted-foreground"> (? {BOLSAS_PER_KG_META} bolsas/kg)</span>
                 </p>
               </div>
             </div>
           ) : null}
 
           {modo === "kg" ? (
-            <div className="rounded-md border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
+            <div className="rounded-md border border-dashed border-subtle px-3 py-2 text-xs text-muted-foreground">
               Resumen: <span className="font-mono text-foreground">{Number(cantKgWatch).toLocaleString("es-AR")} kg</span>
             </div>
           ) : null}
@@ -320,7 +320,7 @@ export function StockIntakeDialog(props: Props) {
               type="submit"
               disabled={props.isSubmitting || props.deposits.filter((d) => d.is_active).length === 0}
             >
-              {props.isSubmitting ? "Registrando…" : "Registrar ingreso"}
+              {props.isSubmitting ? "Registrando���" : "Registrar ingreso"}
             </Button>
           </DialogFooter>
         </form>

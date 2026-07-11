@@ -83,14 +83,14 @@ export function OrderPriorityStars({ prioridad }: { prioridad: number | null | u
 export function estadoBadgeClass(estado: string): string {
   switch (estado) {
     case "pendiente":
-      return "border-border bg-muted text-foreground";
+      return "border-subtle bg-muted text-muted-foreground";
     case "en_preparacion":
-      return "border-primary/45 bg-primary/15 text-foreground";
+      return "border-info/30 bg-info/10 text-info";
     case "entregado":
-      return "border-primary/30 bg-primary/10 text-foreground";
+      return "border-success/30 bg-success/10 text-success";
     case "cancelado":
-      return "border-border bg-muted text-muted-foreground";
+      return "border-destructive/30 bg-destructive/10 text-destructive";
     default:
-      return "border-border bg-muted";
+      return "border-subtle bg-muted text-muted-foreground";
   }
 }
